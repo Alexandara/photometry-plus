@@ -28,7 +28,7 @@ class Star:
         self.counts = c
         self.magnitude = m
 
-class Answer:
+class Photometry:
     def __init__(self, fileName, JD, magnitude, error):
         self.fileName = fileName
         self.JD = JD
@@ -86,10 +86,10 @@ PURPOSE:    To take the recorded RA and DEC of a star and
             center it for the image itself at the point of 
             highest photon counts
 """
-def findCenter(ra, dec, data):
+def findCenter(Y, X, data):
     high = 0
-    highRA = ra
-    highDec = dec
+    highY = Y
+    highX = X
     #Search an area 100 pixels around the reported center
     for i in range(100):
         for j in range(100):
@@ -97,12 +97,12 @@ def findCenter(ra, dec, data):
             #photon count so far, high should be set to that
             #amount and the RA and DEC should be set to that
             #location
-            if data[dec + 50 - j][ra + 50 - i] > high:
-                high = data[dec + 50 - j][ra + 50 - i]
-                highRA = ra + 50 - i
-                highDec = dec + 50 - j
+            if data[X + 50 - j][Y + 50 - i] > high:
+                high = data[X + 50 - j][Y + 50 - i]
+                highY = Y + 50 - i
+                highX = X + 50 - j
     #Return the true center of the star
-    return highRA, highDec
+    return highY, highX
 
 """
 NAME:       findBlankNoRad
@@ -115,64 +115,10 @@ PURPOSE:    In the case the FWHM cannot be used as the radius
             counts in a blank portion of the sky without the 
             radius of the main star.
 """
-def findBlankNoRad(ra, dec, data1):
-    #FindBlankNoRad creates a less correct blank sky count that
-    # does not use the radius of the star in any way
-    #This allows the radius to be calculated and used to
-    # calculate a better blank sky count
-    flag = 0
-    low = data1[dec][ra]
-    y = ra
-    x = dec
-    currY = ra
-    currX = dec
-    nextY = ra
-    nextX = dec
-    # Compute Gradient Descent to find an empty pixel spot
-    # This traverses all pixels towards a local minimum, which
-    # is then used to find the blank pixel average
-    while flag == 0:
-        # This checks in every direction for a lower spot,
-        # and then steps in that direction
-        for i in range(3):
-            for j in range(3):
-                if data1[currX + 1 - i][currY + 1 - j] < low:
-                    low = data1[currX + 1 - i][currY + 1 - j]
-                    nextX = currX + 1 - i
-                    nextY = currY + 1 - j
-        # If there was no movement in the previous step,
-        # this sets the end flag to one, causing the while loop
-        # to end
-        if currX == nextX and currY == nextY:
-            flag = 1
-        currX = nextX
-        currY = nextY
-    x = currX
-    y = currY
-    avBlank = 0
-    r = 100 # This is an assumed radius, this can be modified as needed
-    #This adds together all pixels in an area 4 times the radius
-    # of the target star
-    if x <= dec and y <= ra:
-        for i in range(r):
-            for j in range(r):
-                avBlank = avBlank + data1[x - i][y - j]
-    if x >= dec and y <= ra:
-        for i in range(r):
-            for j in range(r):
-                avBlank = avBlank + data1[x + i][y - j]
-    if x <= dec and y >= ra:
-        for i in range(r):
-            for j in range(r):
-                avBlank = avBlank + data1[x - i][y + j]
-    if x >= dec and y >= ra:
-        for i in range(r):
-            for j in range(r):
-                avBlank = avBlank + data1[x + i][y + j]
-    #This averages the blank pixels over the area and then
-    # returns it
-    avBlank = avBlank / (r * r)
-    return avBlank
+def findBlankNoRad():
+    # Using Background2d to get a median background count
+    background = Background2D(data, (100, 100))
+    return background.background_median
 
 """
 NAME:       findRadius
@@ -184,47 +130,47 @@ PURPOSE:    This finds the radius of a target star by detecting
             the transition to blank sky. This is only for use in 
             cases where using the FWHM is not possible.
 """
-def findRadius(ra, dec, data):
+def findRadius(Y, X, data):
 
     x, y = data.shape
-    prev = 10000
-    curr = 10000
-    currY = ra
-    currX = dec
+    currY = Y
+    currX = X
     #Blank is the number of counts per pixel in empty sky
     blank = findBlankNoRad(currY, currX, data)
     r1 = 0
     r2 = 0
     r3 = 0
     r4 = 0
+    #Find the distance it takes each direction to get to blank sky
     while data[currX][currY] > blank:
         currY = currY + 1
         if currY >= y:
-            currY = ra
+            currY = Y
             break
-    r1 = currY - ra
-    currY = ra
+    r1 = currY - Y
+    currY = Y
     while data[currX][currY] > blank:
         currY = currY - 1
         if currY <= 1:
-            currY = ra
+            currY = Y
             break
-    r2 = -1 * (currY - ra)
-    currY = ra
+    r2 = -1 * (currY - Y)
+    currY = Y
     while data[currX][currY] > blank:
         currX = currX - 1
         if currX <= 1:
-            currX = dec * -1
+            currX = X * -1
             break
-    r3 = -1 * (currX - dec)
-    currX = dec
+    r3 = -1 * (currX - X)
+    currX = X
     while data[currX][currY] > blank:
         currX = currX + 1
         if currX >= x:
-            currX = dec
+            currX = X
             break
-    r4 = currX - dec
+    r4 = currX - X
 
+    # Take the maximum out of the four found radius
     max = 100
     if r1 >= r2 and r1 >= r3 and r1 >= r4:
         max = r1
@@ -249,55 +195,11 @@ PURPOSE:    Using the radius of the primary target star, this
             the radius of the primary target star and returns it.
 NOTE:       See findBlankNoRad for detailed comments on the procedure.
 """
-def findBlank(ra, dec, data1, rad):
-    # Data Assignment
-    flag = 0
-    low = data1[dec][ra]
-    y = ra
-    x = dec
-    currY = ra
-    currX = dec
-    nextY = ra
-    nextX = dec
-    options = []
-    # Compute Gradient Descent to find an empty pixel spot
-    while flag == 0:
-        for i in range(3):
-            for j in range(3):
-                if data1[currX + 1 - i][currY + 1 - j] < low:
-                    low = data1[currX + 1 - i][currY + 1 - j]
-                    nextX = currX + 1 - i
-                    nextY = currY + 1 - j
-        if currX == nextX and currY == nextY:
-            flag = 1
-        currX = nextX
-        currY = nextY
-    x = currX
-    y = currY
-    avBlank = 0
-    r = 4 * rad
-    if x <= dec and y <= ra:
-        for i in range(r):
-            for j in range(r):
-                options.append(data1[x - i][y - j])
-                avBlank = avBlank + data1[x - i][y - j]
-    if x >= dec and y <= ra:
-        for i in range(r):
-            for j in range(r):
-                options.append(data1[x - i][y - j])
-                avBlank = avBlank + data1[x + i][y - j]
-    if x <= dec and y >= ra:
-        for i in range(r):
-            for j in range(r):
-                options.append(data1[x - i][y - j])
-                avBlank = avBlank + data1[x - i][y + j]
-    if x >= dec and y >= ra:
-        for i in range(r):
-            for j in range(r):
-                options.append(data1[x - i][y - j])
-                avBlank = avBlank + data1[x + i][y + j]
-    avBlank = avBlank / (16 * r * r)
-    return options[int(len(options)/2)] # SORT THIS ARRAY
+def findBlank(data, r):
+    # Uses Background2D to find the median blanks over an area the side
+    # of the star times four
+    background = Background2D(data, ((r * 4), (r * 4)))
+    return background.background_median
 
 """
 NAME:       starCount
@@ -310,22 +212,15 @@ PARAMETERS: Center of star pixel Y location (ra)
 PURPOSE:    Taking in information about any star, this method counts
             the photons in a circular area around the center of the star.
 """
-def starCount(ra, dec, data, r, blank):
-    A = math.pi * r * r
-    pix = 0
-    sum = 0
-    for i in range(r * 2):
-        for j in range(r * 2):
-            # Checks if the pixel being checked is within the radius of the
-            # star. If so, that pixel's count is added to the total.
-            if (math.sqrt((ra - (ra + r - i)) * (ra - (ra + r - i))
-                          + (dec - (dec + r - j)) * (dec - (dec
-                            + r - j)))) <= r:
-                pix = pix + 1
-                sum = sum + data[int(dec + r - j)][int(ra + r - i)]
-    #print(r, sum, pix, blank)
-    tot = sum - (pix * blank)
-    return tot
+def starCount(Y, X, data, r, blank):
+    # Creates an aperture centered around the target star of radius r
+    targetAperture = CircularAperture((X, Y), r=r)
+    targetStarTable = aperture_photometry(data, targetAperture)
+    # Counts the sum in that aperture
+    targetStarPhotons = targetStarTable['aperture_sum'][0]
+    # Subtracts blank counts per every pixel in the star
+    targetStarPhotons = targetStarPhotons - ((math.pi * r * r) * blank)
+    return targetStarPhotons
 
 """
 NAME:       starMake
@@ -491,15 +386,18 @@ def findOtherStars(ra, dec, data, rad, blank, w):
     return stars
 
 """
-NAME:       printToFile
+NAME:       printReferenceToFile
 RETURNS:    Nothing
 PARAMETERS: Array of star objects (stars)
 PURPOSE:    This method prints out a file containing
             the stars used for calculating magnitude
 """
-def printToFile(stars, w):
+def printReferenceToFile(stars, w):
+    # Create new file, stars.csv
     file = open("stars.csv", "w")
+    # Create the heading
     file.write("Name,Right Ascension (Decimal Degrees),Declination (Decimal Degrees),Radius (pixels),Photons,Magnitude,\n")
+    # For each reference star, print all categories
     for i in range(len(stars)):
         realRA, realDec = w.all_pix2world(stars[i].ra, stars[i].dec, 0)
         file.write(str(stars[i].id) + "," + str(realRA) + "," + str(realDec)
@@ -529,14 +427,14 @@ def readFromFile(fileName, radius, data, blank, w):
     return stars
 
 """
-NAME:       output
+NAME:       printResultsToFile
 RETURNS:    nothing
-PARAMETERS: An array of Answer objects (info)
-PURPOSE:    Output a file with answers including the file name,
+PARAMETERS: An array of Photometry objects (info)
+PURPOSE:    Output a file with the file name,
             the JD (Julian Date) of the observation, the magnitude 
             reported, and the error of that reported magnitude
 """
-def output(info):
+def printResultsToFile(info):
     file = open("output.csv", "w")
     file.write("File Name,JD,Magnitude,Error, \n")
     for i in range(len(info)):
@@ -544,7 +442,14 @@ def output(info):
                    + str(info[i].error) + ", \n")
     file.close()
 
-def plot(filename):
+"""
+NAME:       plotResultsFile
+RETURNS:    nothing
+PARAMETERS: An output filename
+PURPOSE:    Creates a light curve with error bars
+"""
+def plotResultsFile(filename):
+    # Read in output values from file
     file = open(filename, "r")
     jd = []
     mag = []
@@ -555,23 +460,62 @@ def plot(filename):
             jd.append(float(array[1]))
             mag.append(float(array[2]))
             err.append(float(array[3]))
+    # Smooth line print
     xnew = np.linspace(min(jd), max(jd), 300)
     spl = make_interp_spline(jd, mag, k=3)  # type: BSpline
     power_smooth = spl(xnew)
+    plt.plot(xnew, power_smooth)
+    # Chart Title
     plt.title('Light Curve of DW Cnc from February 15th to March 29th')
+    # Error bars
     plt.errorbar(jd, mag, err, fmt='ko')
-    #Smooth line:
-    #plt.plot(xnew, power_smooth)
+    # X axis label
     plt.xlabel('Julian Day')
+    # Y axis label
     plt.ylabel('Magnitude')
+    # Inverting the y axis because a smaller magnitude is a brighter object
     plt.gca().invert_yaxis()
     plt.show()  # to print to screen
     plt.savefig("chart.pdf")  # to save to file
 
 """
+NAME:       calculateMagnitudeAndError
+RETURNS:    Average magnitude and error of the magnitude measurement
+PARAMETERS: A number values representing the counts in the target star (targetStarCounts)
+            An array of Star objects representing reference stars (stars)
+PURPOSE:    Calculates the average magnitude of the target star given the 
+            reference stars, and the error in that measurement by calculating
+            standard deviation of the calculated magnitudes.
+"""
+def calculateMagnitudeAndError(targetStarPhotons, stars):
+    # Find the magnitude relative to each other star, and then averages them
+    ave = 0
+    magnitudes = []
+    std = 0
+    # Calculate average magnitude
+    for i in range(len(stars)):
+        if (targetStarPhotons > 0) and (stars[i].counts > 0):
+            magnitudes.append((-2.5) * math.log10(targetStarPhotons / stars[i].counts)
+                              + float(stars[i].magnitude))
+            ave = ave + ((-2.5) * math.log10(targetStarPhotons / stars[i].counts)
+                         + float(stars[i].magnitude))
+    if len(magnitudes) == 0:
+        # If the magnitude cannot be calculated for any reference star, exit
+        return 0;
+    ave = ave / len(magnitudes)
+
+    # Calculate standard deviation of magnitudes for error
+    for i in range(len(magnitudes)):
+        std = std + ((magnitudes[i] - ave) * (magnitudes[i] - ave))
+    std = std / len(magnitudes)
+    std = math.sqrt(std)
+    return ave, std, magnitudes
+
+"""
 NAME:       letsGo
-RETURNS:    An Answer object with the data gained during 
-            this process
+RETURNS:    A Photometry object with the data gained during 
+            this process OR 0 if the magnitude cannot be
+            computed
 PARAMETERS: The right ascension of the target star in
             Decimal Degrees (targetStarRA)
             The declination of the target star in
@@ -603,7 +547,8 @@ PARAMETERS: The right ascension of the target star in
             printFlag:
                 Set 0 to not print stars to a file, and set
                 1 to print stars to a file
-PURPOSE:    This is where it all begins.
+PURPOSE:    This method combines the methods in this file to perform 
+            full differential photometry on one image file. 
 """
 def letsGo(targetStarRA, targetStarDec,
            mainFile, darkFrame, biasFrame, flatField,
@@ -611,66 +556,54 @@ def letsGo(targetStarRA, targetStarDec,
            readFlag=0, magnitudeFlag=1, fwhmFlag=1,
            printFlag=1):
     if calibrationFlag == 1:
+        # Calibrate the image
         hdul = calibrate(mainFile, darkFrame, biasFrame, flatField)
         if calibrationOutputFlag == 1:
             hdul.writeto("output.fits", overwrite=True)
     else:
+        # Use the raw image
         hdul = fits.open(mainFile)
+
     if magnitudeFlag == 0:
+        # Leave the function if not calculating magnitude
         return 0
+    # Calculate magnitude
     # w is the reference of world coordinates for this image
     w = wcs.WCS(hdul[0].header)
-    #print(w.all_pix2world(2046,2046,0))
-    # Convert COORDINATE system data into pixel locations
+
+    # Convert COORDINATE system data into pixel locations for the image
     X, Y = w.all_world2pix(targetStarRA, targetStarDec, 0)
-    # Centers the target star location for this specific image
-    pixRA = int(Y)
-    pixDec = int(X)
+
+    # Converts pixel values to integers
+    Y = int(Y) #was pixRA
+    X = int(X) #was pixDec
+
     #pixRA, pixDec = findCenter(int(Y), int(X), hdul[0].data)
     if fwhmFlag == 1:
         radius = int(3 * hdul[0].header['FWHM'])
     else:
         # Set the radius to the distance from the center
         # of the star to the farthest edge of the star
-        radius = findRadius(pixRA, pixDec, hdul[0].data)
-    # Find the photon counts per pixel of blank sky
-    #blankSkyPhotons = findBlank(pixRA, pixDec, hdul[0].data, radius)
-    background = Background2D(hdul[0].data, ((radius*4),(radius*4)))
-    blankSkyPhotons = background.background_median
-    # Find the photon counts in the target star
-    #targetStarPhotons = starCount(pixRA, pixDec, hdul[0].data, radius, blankSkyPhotons)
-    targetAperture = CircularAperture((pixDec,pixRA), r=radius)
-    targetStarTable = aperture_photometry(hdul[0].data, targetAperture)
-    targetStarPhotons = targetStarTable['aperture_sum'][0]
-    targetStarPhotons = targetStarPhotons - ((math.pi*radius*radius)*blankSkyPhotons)
+        radius = findRadius(Y, X, hdul[0].data)
 
-    # Find an array with up to 8 other stars with magnitudes
+    # Find the photon counts per pixel of blank sky
+    blankSkyPhotons = findBlank(hdul[0].data, radius)
+
+    # Find the photon counts in the target star
+    targetStarPhotons = starCount(Y, X, hdul[0].data, radius, blankSkyPhotons)
+
+    # Find reference stars
     if readFlag == 0:
-        stars = findOtherStars(pixRA, pixDec, hdul[0].data, radius, blankSkyPhotons, w)
+        # Finding new stars automatically
+        stars = findOtherStars(Y, X, hdul[0].data, radius, blankSkyPhotons, w)
     elif readFlag == 1:
+        # Read in reference stars from file
         stars = readFromFile("stars.csv", radius, hdul[0].data, blankSkyPhotons, w)
-    # Find the magnitude relative to each other star, and then averages them
-    ave = 0
-    magnitudes = []
-    std = 0
-    #Calculate average magnitude
-    for i in range(len(stars)):
-        #print(targetStarPhotons, stars[i].counts, stars[i].magnitude)
-        #print(targetStarPhotons, stars[i].counts, stars[i].magnitude, blankSkyPhotons)
-        if(targetStarPhotons > 0) and (stars[i].counts > 0):
-            magnitudes.append((-2.5) * math.log10(targetStarPhotons / stars[i].counts)
-                                 + float(stars[i].magnitude))
-            ave = ave + ((-2.5) * math.log10(targetStarPhotons / stars[i].counts)
-                                 + float(stars[i].magnitude))
-    if len(magnitudes) == 0:
-        return 0;
-    ave = ave / len(magnitudes)
-    #Calculate std of magnitudes
-    for i in range(len(magnitudes)):
-        std = std + ((magnitudes[i] - ave) * (magnitudes[i] - ave))
-    std = std / len(magnitudes)
-    std = math.sqrt(std)
-    #Remove outliers
+
+    # Calculate magnitudes, average, and error
+    ave, std, magnitudes = calculateMagnitudeAndError(targetStarPhotons, stars)
+
+    # Remove outliers
     if std >= (ave/20):
         print("I calculate there may be some outliers in the data. Review this list "
               + "below for outliers: ")
@@ -692,21 +625,19 @@ def letsGo(targetStarRA, targetStarDec,
         for i in range(len(toRemove)):
             magnitudes.remove(toRemove[i])
             stars.remove(toRemoveStars[i])
-    ave = 0
-    std = 0
-    for i in range(len(magnitudes)):
-        #print(targetStarPhotons, stars[i].counts, stars[i].magnitude)
-        ave = ave + magnitudes[i]
-    ave = ave / len(magnitudes)
-    #Calculate std of magnitudes
-    for i in range(len(magnitudes)):
-        std = std + ((magnitudes[i] - ave) * (magnitudes[i] - ave))
-    std = std / len(magnitudes)
-    std = math.sqrt(std)
+
+        # Recalculate average magnitude and standard deviation without outliers
+        ave, std, magnitudes = calculateMagnitudeAndError(targetStarPhotons, stars)
+
+    # Console output
     #print("The magnitude of the star is ", ave )
     #print("The error of this calculation is ", std)
+
+    # Printing reference stars to files
     if printFlag == 1:
-        printToFile(stars, w)
-    ans = Answer(mainFile, hdul[0].header['JD'], ave, std)
+        printReferenceToFile(stars, w)
+
+    # Create and return the results of the photometry
+    ans = Photometry(mainFile, hdul[0].header['JD'], ave, std)
     return ans
 
