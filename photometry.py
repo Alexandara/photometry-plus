@@ -657,11 +657,14 @@ def letsGo(targetStarRA, targetStarDec,
     for i in range(len(stars)):
         #print(targetStarPhotons, stars[i].counts, stars[i].magnitude)
         #print(targetStarPhotons, stars[i].counts, stars[i].magnitude, blankSkyPhotons)
-        magnitudes.append((-2.5) * math.log10(targetStarPhotons / stars[i].counts)
+        if(targetStarPhotons > 0) and (stars[i].counts > 0):
+            magnitudes.append((-2.5) * math.log10(targetStarPhotons / stars[i].counts)
                                  + float(stars[i].magnitude))
-        ave = ave + ((-2.5) * math.log10(targetStarPhotons / stars[i].counts)
+            ave = ave + ((-2.5) * math.log10(targetStarPhotons / stars[i].counts)
                                  + float(stars[i].magnitude))
-    ave = ave / len(stars)
+    if len(magnitudes) == 0:
+        return 0;
+    ave = ave / len(magnitudes)
     #Calculate std of magnitudes
     for i in range(len(magnitudes)):
         std = std + ((magnitudes[i] - ave) * (magnitudes[i] - ave))
@@ -706,109 +709,4 @@ def letsGo(targetStarRA, targetStarDec,
         printToFile(stars, w)
     ans = Answer(mainFile, hdul[0].header['JD'], ave, std)
     return ans
-
-if __name__ == '__main__':
-    #, "BG CMi V-20200225at080746_-25-1X1-300-V.fts","BG CMi V-20200226at030643_-25-1X1-300-V.fts"
-    fileBGCMi = ["BG CMi V-20200214at065051_-25-1X1-300-V.fts", "BG CMi V-20200215at081346_-25-1X1-300-V.fts",
-                "BG CMi V-20200216at085444_-25-1X1-300-V.fts", "BG CMi V-20200217at081116_-25-1X1-300-V.fts",
-                "BG CMi V-20200220at051438_-25-1X1-300-V.fts", "BG CMi V-20200221at022435_-25-1X1-300-V.fts",
-                "BG CMi V-20200222at075019_-25-1X1-300-V.fts", "BG CMi V-20200225at080746_-25-1X1-300-V.fts",
-                "BG CMi V-20200226at030643_-25-1X1-300-V.fts", "BG CMi V-20200227at040050_-25-1X1-300-V.fts",
-                "BG CMi V-20200228at030904_-25-1X1-300-V.fts", "BG CMi V-20200229at042920_-25-1X1-300-V.fts",
-                "BG CMi V-20200301at040410_-25-1X1-300-V.fts", "BG CMi V-20200303at022859_-25-1X1-300-V.fts",
-                "BG CMi V-20200304at022951_-25-1X1-300-V.fts", "BG CMi V-20200305at023047_-25-1X1-300-V.fts",
-                "BG CMi V-20200306at023153_-25-1X1-300-V.fts", "BG CMi V-20200307at050520_-25-1X1-300-V.fts",
-                "BG CMi V-20200309at043858_-25-1X1-300-V.fts", "BG CMi V-20200311at035904_-25-1X1-300-V.fts",
-                "BG CMi V-20200312at023744_-25-1X1-300-V.fts", "BG CMi V-20200316at024205_-25-1X1-300-V.fts",
-                "BG CMi V-20200317at054207_-25-1X1-300-V.fts", "BG CMi V-20200318at030347_-25-1X1-300-V.fts",
-                "BG CMi V-20200321at024018_-25-1X1-300-V.fts", "BG CMi V-20200322at024116_-25-1X1-300-V.fts",
-                "BG CMi V-20200328at024703_-25-1X1-300-V.fts"]
-    fileDODra = ["DO Dra V-20200218at110425_-25-1X1-300-V.fts", "DO Dra V-20200219at092005_-25-1X1-300-V.fts",
-                 "DO Dra V-20200220at053522_-25-1X1-300-V.fts", "DO Dra V-20200221at023839_-25-1X1-300-V.fts",
-                 "DO Dra V-20200222at073736_-25-1X1-300-V.fts", "DO Dra V-20200223at132235_-25-1X1-300-V.fts",
-                 "DO Dra V-20200224at092617_-25-1X1-300-V.fts", "DO Dra V-20200225at075457_-25-1X1-300-V.fts",
-                 "DO Dra V-20200226at032754_-25-1X1-300-V.fts", "DO Dra V-20200227at041435_-25-1X1-300-V.fts",
-                 "DO Dra V-20200228at033021_-25-1X1-300-V.fts", "DO Dra V-20200229at044958_-25-1X1-300-V.fts",
-                 "DO Dra V-20200301at042438_-25-1X1-300-V.fts", "DO Dra V-20200303at025013_-25-1X1-300-V.fts",
-                 "DO Dra V-20200304at025106_-25-1X1-300-V.fts", "DO Dra V-20200305at025200_-25-1X1-300-V.fts",
-                 "DO Dra V-20200306at025302_-25-1X1-300-V.fts", "DO Dra V-20200307at051249_-25-1X1-300-V.fts",
-                 "DO Dra V-20200309at044636_-25-1X1-300-V.fts", "DO Dra V-20200310at083840_-25-1X1-300-V.fts",
-                 "DO Dra V-20200311at041958_-25-1X1-300-V.fts", "DO Dra V-20200312at025127_-25-1X1-300-V.fts",
-                 "DO Dra V-20200316at025539_-25-1X1-300-V.fts", "DO Dra V-20200317at052920_-25-1X1-300-V.fts",
-                 "DO Dra V-20200318at032433_-25-1X1-300-V.fts", "DO Dra V-20200320at065936_-25-1X1-300-V.fts",
-                 "DO Dra V-20200321at030035_-25-1X1-300-V.fts", "DO Dra V-20200322at030139_-25-1X1-300-V.fts",
-                 "DO Dra V-20200328at030741_-25-1X1-300-V.fts", "DO Dra V-20200330at045657_-25-1X1-300-V.fts"]
-    #"DW Cnc V-20200307at045916_-25-1X1-300-V.fts",
-    fileDWCnc = ["DW Cnc V-20200215at080749_-25-1X1-300-V.fts", "DW Cnc V-20200216at084847_-25-1X1-300-V.fts",
-                 "DW Cnc V-20200217at080518_-25-1X1-300-V.fts", "DW Cnc V-20200219at092712_-25-1X1-300-V.fts",
-                 "DW Cnc V-20200220at052045_-25-1X1-300-V.fts", "DW Cnc V-20200221at023039_-25-1X1-300-V.fts",
-                 "DW Cnc V-20200222at074422_-25-1X1-300-V.fts", "DW Cnc V-20200224at093328_-25-1X1-300-V.fts",
-                 "DW Cnc V-20200225at080148_-25-1X1-300-V.fts", "DW Cnc V-20200226at031250_-25-1X1-300-V.fts",
-                 "DW Cnc V-20200227at040657_-25-1X1-300-V.fts", "DW Cnc V-20200228at031511_-25-1X1-300-V.fts",
-                 "DW Cnc V-20200229at043527_-25-1X1-300-V.fts", "DW Cnc V-20200301at041017_-25-1X1-300-V.fts",
-                 "DW Cnc V-20200303at023502_-25-1X1-300-V.fts", "DW Cnc V-20200304at023557_-25-1X1-300-V.fts",
-                 "DW Cnc V-20200305at023654_-25-1X1-300-V.fts", "DW Cnc V-20200306at023756_-25-1X1-300-V.fts",
-                 "DW Cnc V-20200307at045916_-25-1X1-300-V.fts", "DW Cnc V-20200309at043259_-25-1X1-300-V.fts",
-                 "DW Cnc V-20200311at040512_-25-1X1-300-V.fts", "DW Cnc V-20200312at024351_-25-1X1-300-V.fts",
-                 "DW Cnc V-20200316at024808_-25-1X1-300-V.fts", "DW Cnc V-20200317at053605_-25-1X1-300-V.fts",
-                 "DW Cnc V-20200318at030958_-25-1X1-300-V.fts", "DW Cnc V-20200320at070637_-25-1X1-300-V.fts",
-                 "DW Cnc V-20200321at024626_-25-1X1-300-V.fts", "DW Cnc V-20200322at024724_-25-1X1-300-V.fts",
-                 "DW Cnc V-20200328at025305_-25-1X1-300-V.fts", "DW Cnc V-20200330at050343_-25-1X1-300-V.fts"]
-    fileGKPer = ["GK Per V-20200213at063227_-25-1X1-300-V.fts", "GK Per V-20200220at054332_-25-1X1-300-V.fts",
-                 "GK Per V-20200221at021744_-25-1X1-300-V.fts", "GK Per V-20200226at031933_-25-1X1-300-V.fts",
-                 "GK Per V-20200227at042252_-25-1X1-300-V.fts", "GK Per V-20200228at032201_-25-1X1-300-V.fts",
-                 "GK Per V-20200229at045810_-25-1X1-300-V.fts", "GK Per V-20200301at043253_-25-1X1-300-V.fts",
-                 "GK Per V-20200303at024148_-25-1X1-300-V.fts", "GK Per V-20200304at024242_-25-1X1-300-V.fts",
-                 "GK Per V-20200305at024338_-25-1X1-300-V.fts", "GK Per V-20200306at024440_-25-1X1-300-V.fts",
-                 "GK Per V-20200307at052800_-25-1X1-300-V.fts", "GK Per V-20200311at042810_-25-1X1-300-V.fts",
-                 "GK Per V-20200312at025943_-25-1X1-300-V.fts", "GK Per V-20200316at030351_-25-1X1-300-V.fts",
-                 "GK Per V-20200318at033250_-25-1X1-300-V.fts", "GK Per V-20200321at030851_-25-1X1-300-V.fts",
-                 "GK Per V-20200322at030955_-25-1X1-300-V.fts", "GK Per V-20200328at031551_-25-1X1-300-V.fts"]
-    fileV405Aur = ["V405 Aur V-20200215at082131_-25-1X1-300-V.fts", "V405 Aur V-20200216at090335_-25-1X1-300-V.fts",
-                   "V405 Aur V-20200217at081902_-25-1X1-300-V.fts", "V405 Aur V-20200219at093519_-25-1X1-300-V.fts",
-                   "V405 Aur V-20200220at052735_-25-1X1-300-V.fts", "V405 Aur V-20200221at021009_-25-1X1-300-V.fts",
-                   "V405 Aur V-20200222at075803_-25-1X1-300-V.fts", "V405 Aur V-20200225at081536_-25-1X1-300-V.fts",
-                   "V405 Aur V-20200226at025959_-25-1X1-300-V.fts", "V405 Aur V-20200227at035419_-25-1X1-300-V.fts",
-                   "V405 Aur V-20200228at030209_-25-1X1-300-V.fts", "V405 Aur V-20200229at044212_-25-1X1-300-V.fts",
-                   "V405 Aur V-20200301at041652_-25-1X1-300-V.fts", "V405 Aur V-20200303at022151_-25-1X1-300-V.fts",
-                   "V405 Aur V-20200304at022250_-25-1X1-300-V.fts", "V405 Aur V-20200305at022346_-25-1X1-300-V.fts",
-                   "V405 Aur V-20200306at022456_-25-1X1-300-V.fts", "V405 Aur V-20200307at052120_-25-1X1-300-V.fts",
-                   "V405 Aur V-20200309at045512_-25-1X1-300-V.fts", "V405 Aur V-20200311at041202_-25-1X1-300-V.fts",
-                   "V405 Aur V-20200312at023108_-25-1X1-300-V.fts", "V405 Aur V-20200316at023529_-25-1X1-300-V.fts",
-                   "V405 Aur V-20200317at055031_-25-1X1-300-V.fts", "V405 Aur V-20200318at031634_-25-1X1-300-V.fts",
-                   "V405 Aur V-20200320at071438_-25-1X1-300-V.fts", "V405 Aur V-20200321at025255_-25-1X1-300-V.fts",
-                   "V405 Aur V-20200322at025352_-25-1X1-300-V.fts", "V405 Aur V-20200328at025954_-25-1X1-300-V.fts",
-                   "V405 Aur V-20200330at051721_-25-1X1-300-V.fts"]
-    fileV2306Cyg = ["V2306 Cyg V-20200220at132648_-25-1X1-300-V.fts",
-                    "V2306 Cyg V-20200221at132205_-25-1X1-300-V.fts", "V2306 Cyg V-20200224at131505_-25-1X1-300-V.fts",
-                    "V2306 Cyg V-20200225at130707_-25-1X1-300-V.fts", "V2306 Cyg V-20200226at130239_-25-1X1-300-V.fts",
-                    "V2306 Cyg V-20200227at120612_-25-1X1-300-V.fts", "V2306 Cyg V-20200228at120318_-25-1X1-300-V.fts",
-                    "V2306 Cyg V-20200301at120536_-25-1X1-300-V.fts", "V2306 Cyg V-20200303at114832_-25-1X1-300-V.fts",
-                    "V2306 Cyg V-20200304at114440_-25-1X1-300-V.fts", "V2306 Cyg V-20200305at114057_-25-1X1-300-V.fts",
-                    "V2306 Cyg V-20200307at124725_-25-1X1-300-V.fts", "V2306 Cyg V-20200310at111952_-25-1X1-300-V.fts",
-                    "V2306 Cyg V-20200311at121847_-25-1X1-300-V.fts", "V2306 Cyg V-20200312at111151_-25-1X1-300-V.fts",
-                    "V2306 Cyg V-20200316at105721_-25-1X1-300-V.fts", "V2306 Cyg V-20200321at123354_-25-1X1-300-V.fts",
-                    "V2306 Cyg V-20200328at121636_-25-1X1-300-V.fts", "V2306 Cyg V-20200330at121406_-25-1X1-300-V.fts"]
-    dark = "master_dark_20200203_1X1_300.fits"
-    bias = "master_bias_20200203_1X1.fits"
-    flat = "master_flat_20200203_1X1_V.fits"
-    ans = []
-    plot("OutputDWCnc3:29.csv")
-    """
-    for i in range(len(fileDWCnc)):
-        print(i)
-        ans.append(letsGo(119.721, 16.279214, fileDWCnc[i], dark, bias, flat,
-           fwhmFlag=1, readFlag=1, printFlag=1, calibrationOutputFlag=1))
-    output(ans)
-    """
-    #ans.append(letsGo(119.721, 16.279214, fileDWCnc[0], dark, bias, flat,fwhmFlag=1, readFlag=1, printFlag=1, calibrationOutputFlag=1, magnitudeFlag=0))
-
-
-    #AT2019tlu: 342.7786776641249, 53.838649247991135
-    #V* BG CMI: 112.87098738, 9.93977588
-    #V* DO Dra: 175.91034694, 71.68911273
-    #V* DW Cnc: 119.721, 16.279214
-    #V* GK Per: 52.800196, 43.90441
-    #V* V405 Aur: 89.497053, 53.895975
-    #V* : 299.56029, 32.545001
 
