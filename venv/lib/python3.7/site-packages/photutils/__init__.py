@@ -1,0 +1,39 @@
+# Licensed under a 3-clause BSD style license - see LICENSE.rst
+"""
+Photutils is an Astropy affiliated package to provide tools for
+detecting and performing photometry of astronomical sources.  It also
+has tools for background estimation, ePSF building, PSF matching,
+centroiding, and morphological measurements.
+"""
+
+import os
+
+
+# Affiliated packages may add whatever they like to this file, but
+# should keep this content at the top.
+# ----------------------------------------------------------------------------
+from ._astropy_init import *  # noqa
+# ----------------------------------------------------------------------------
+
+if not _ASTROPY_SETUP_:  # noqa
+    from .aperture import *  # noqa
+    from .background import *  # noqa
+    from .centroids import *  # noqa
+    from .detection import *  # noqa
+    from .morphology import *  # noqa
+    from .psf import *  # noqa
+    from .segmentation import *  # noqa
+
+
+# Set the bibtex entry to the article referenced in CITATION.
+def _get_bibtex():
+    citation_file = os.path.join(os.path.dirname(__file__), 'CITATION')
+
+    with open(citation_file, 'r') as citation:
+        refs = citation.read().split('@misc')[1:]
+        if len(refs) == 0: return ''
+        bibtexreference = "@misc{0}".format(refs[0])
+    return bibtexreference
+
+
+__citation__ = __bibtex__ = _get_bibtex()
