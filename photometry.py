@@ -17,6 +17,8 @@ from astropy.coordinates import SkyCoord
 from matplotlib.colors import LogNorm
 from skimage import data, img_as_float
 from skimage import exposure
+import glob
+import os
 
 
 class Star:
@@ -547,6 +549,9 @@ PARAMETERS: The right ascension of the target star in
             printFlag:
                 Set 0 to not print stars to a file, and set
                 1 to print stars to a file
+            readInReferenceFilename:
+                The name of the file to read in from, if not
+                set it will be stars.csv
 PURPOSE:    This method combines the methods in this file to perform 
             full differential photometry on one image file. 
 """
@@ -554,7 +559,7 @@ def letsGo(targetStarRA, targetStarDec,
            mainFile, darkFrame, biasFrame, flatField,
            calibrationFlag=1, calibrationOutputFlag=0,
            readFlag=0, magnitudeFlag=1, fwhmFlag=1,
-           printFlag=1):
+           printFlag=1, readInReferenceFilename="stars.csv"):
     if calibrationFlag == 1:
         # Calibrate the image
         hdul = calibrate(mainFile, darkFrame, biasFrame, flatField)
@@ -598,7 +603,7 @@ def letsGo(targetStarRA, targetStarDec,
         stars = findOtherStars(Y, X, hdul[0].data, radius, blankSkyPhotons, w)
     elif readFlag == 1:
         # Read in reference stars from file
-        stars = readFromFile("stars.csv", radius, hdul[0].data, blankSkyPhotons, w)
+        stars = readFromFile(readInReferenceFilename, radius, hdul[0].data, blankSkyPhotons, w)
 
     # Calculate magnitudes, average, and error
     ave, std, magnitudes = calculateMagnitudeAndError(targetStarPhotons, stars)
@@ -641,3 +646,54 @@ def letsGo(targetStarRA, targetStarDec,
     ans = Photometry(mainFile, hdul[0].header['JD'], ave, std)
     return ans
 
+"""
+NAME:       calculateMagnitudeAndError
+RETURNS:    Average magnitude and error of the magnitude measurement
+PARAMETERS: A number values representing the counts in the target star (targetStarCounts)
+            An array of Star objects representing reference stars (stars)
+PURPOSE:    Calculates the average magnitude of the target star given the 
+            reference stars, and the error in that measurement by calculating
+            standard deviation of the calculated magnitudes.
+"""
+def runFiles(targetStarRA, targetStarDec,
+            dirName, dark, flat, bias=0,
+            calibrationFlag=1, calibrationOutputFlag=0,
+            readFlag=0, magnitudeFlag=1, fwhmFlag=1,
+            printFlag=1):
+    path = dirName
+    # Make full file names for the directory
+    darkFull = dirName + "/" + dark
+    flatFull = dirName + "/" + flat
+    if bias != 0:
+        biasFull = dirName + "/" + bias
+    else:
+        biasFull = darkFull
+    results = []
+    readFile = "stars.csv"
+    # Check for a read in file
+    if readFlag == 1:
+        for filename in glob.glob(os.path.join(path, '*.csv')):
+            with open(os.path.join(os.getcwd(), filename), 'r') as f:
+                readFile = filename
+
+    # Check and run all .fits files
+    for filename in glob.glob(os.path.join(path, '*.fits')):
+        with open(os.path.join(os.getcwd(), filename), 'r') as f:
+            # Check if file is data
+            if filename != darkFull and filename != flatFull and filename != biasFull:
+                x = letsGo(targetStarRA, targetStarDec, filename, darkFull, biasFull, flatFull,
+                calibrationFlag, calibrationOutputFlag,
+                readFlag, magnitudeFlag, fwhmFlag,
+                printFlag, readInReferenceFilename=readFile)
+                if x != 0:
+                    results.append(x)
+    for filename in glob.glob(os.path.join(path, '*.fts')):
+        with open(os.path.join(os.getcwd(), filename), 'r') as f:
+            if filename != darkFull and filename != flatFull and filename != biasFull:
+                x = letsGo(targetStarRA, targetStarDec, filename, darkFull, biasFull, flatFull,
+                           calibrationFlag, calibrationOutputFlag,
+                           readFlag, magnitudeFlag, fwhmFlag,
+                           printFlag, readInReferenceFilename=readFile)
+                if x != 0:
+                    results.append(x)
+    return results
