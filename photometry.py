@@ -530,10 +530,41 @@ def letsGo(targetStarRA, targetStarDec,
     return ans
 
 """
-NAME:       calculateMagnitudeAndError
-RETURNS:    Average magnitude and error of the magnitude measurement
-PARAMETERS: A number values representing the counts in the target star (targetStarCounts)
-            An array of Star objects representing reference stars (stars)
+NAME:       runFiles
+RETURNS:    Array of result objects containing results for photometry on every file
+            in the directory
+PARAMETERS: The right ascension of the target star in
+            Decimal Degrees (targetStarRA)
+            The declination of the target star in
+            Decimal Degrees (targetStarDec)
+            Directory containing files to process (dirName)
+            The main .fits file with the image data name (mainFile)
+            The dark frame .fits file name (darkFrame)
+                NOTE: Not used when calibrationFlag = 0
+            The bias frame .fits file name (biasFrame)
+                NOTE: Not used when calibrationFlag = 0
+            The flat field .fits file name (flatField)
+                NOTE: Not used when calibrationFlag = 0
+            calibrationFlag:
+                Set 0 to skip calibration, 1 to calibrate
+            calibrationOutputFlag:
+                Set 0 to not create an output file with the
+                calibrated image, set to 1 to output calibrated
+                image data to "output.fits"
+            readFlag
+                Set 0 to find stars, set 1 to load stars from a
+                file
+            magnitudeFlag:
+                Set 0 to skip magnitude calculation, 1 to 
+                calculate magnitude
+            fwhmFlag:
+                Set 0 to use a calculated radius based on
+                the target star gradient, set to 1 to use 
+                three times the full width half mass of the 
+                target star as the radius
+            printFlag:
+                Set 0 to not print stars to a file, and set
+                1 to print stars to a file
 PURPOSE:    Calculates the average magnitude of the target star given the 
             reference stars, and the error in that measurement by calculating
             standard deviation of the calculated magnitudes.

@@ -38,40 +38,7 @@ letsGo(119.721, 16.279214, "DW Cnc V-20200215at080749_-25-1X1-300-V.fts", dark, 
 letsGo(119.721, 16.279214, "DW Cnc V-20200215at080749_-25-1X1-300-V.fts", dark, bias, flat)
 
 # How to start:
-Just download photometry.py and call the function 'letsGo' from the main method with the following parameters (note all flags are optional parameters): 
-
-NAME:       letsGo
-RETURNS:    An Answer object with the data gained during 
-            this process
-PARAMETERS: The right ascension of the target star inDecimal Degrees (targetStarRA)
-            The declination of the target star in Decimal Degrees (targetStarDec)
-            The main .fits file with the image data name (mainFile)
-            The dark frame .fits file name (darkFrame)
-                NOTE: Not used when calibrationFlag = 0
-            The bias frame .fits file name (biasFrame)
-                NOTE: Not used when calibrationFlag = 0
-            The flat field .fits file name (flatField)
-                NOTE: Not used when calibrationFlag = 0
-            calibrationFlag:
-                Set 0 to skip calibration, 1 to calibrate
-            calibrationOutputFlag:
-                Set 0 to not create an output file with the
-                calibrated image, set to 1 to output calibrated
-                image data to "output.fits"
-            readFlag
-                Set 0 to find stars, set 1 to load stars from a
-                file
-            magnitudeFlag:
-                Set 0 to skip magnitude calculation, 1 to 
-                calculate magnitude
-            fwhmFlag:
-                Set 0 to use a calculated radius based on
-                the target star gradient, set to 1 to use 
-                three times the full width half mass of the 
-                target star as the radius
-            printFlag:
-                Set 0 to not print stars to a file, and set
-                1 to print stars to a file
+All of the functions in the program have documentation above them describing what they do.  The functions can be used separately or all at once. To do photometry on a single image, call letsGo. The parameters for letsGo are described above the function, but at its simplest it can be run with only the location of the target star in decimal degrees, the image file, and the calibration files. To run multiple files in a folder, use runFiles. runFiles takes in most of the same parameters as letsGo with the addition of dirName, which is the relative file path to the folder you wish to comb. If set to read in from a file the default stars.csv can be used or the program can find a .csv file in the folder it is looking in and use that. For more detailed instructions email alexisrenee1@gmail.com with questions.
                 
 # Contribute
 Feel free to download this project and change it to suit your needs!
