@@ -22,13 +22,15 @@ import os
 
 
 class Star:
-    def __init__(self, id, r, d, rad, c, m):
+    def __init__(self, id, r, d, rad, c, m, targetM):
         self.id = id
         self.ra = r #Pixel location
         self.dec = d #Pixel location
         self.radius = rad
         self.counts = c
         self.magnitude = m
+        self.targetMagnitude = targetM
+
 
 class Photometry:
     def __init__(self, fileName, JD, magnitude, error):
@@ -138,7 +140,7 @@ def findRadius(Y, X, data):
     currY = Y
     currX = X
     #Blank is the number of counts per pixel in empty sky
-    blank = findBlankNoRad(currY, currX, data)
+    blank = findBlankNoRad()
     r1 = 0
     r2 = 0
     r3 = 0
@@ -225,107 +227,6 @@ def starCount(Y, X, data, r, blank):
     return targetStarPhotons
 
 """
-NAME:       starMake
-RETURNS:    An array of stars including any star found in this direction
-PARAMETERS: Starting DEC for searching (X)
-            Starting RA for searching (Y)
-            Image data (data)
-            Radius to use (rad)
-            Counts in blank sky (blank)
-            Coordinate to pixel parameter (w)
-            Array containing previously searched for stars (stars)
-            Length of the image array (length)
-            Width of the image array (width)
-            Integer indicating what direction to search in (dir)
-PURPOSE:    This searches in a certain direction to find a star that
-            has a V magnitude to add to the star array. If it doesn't 
-            find anything, nothing is added to the array and it is 
-            returned as is. The star is only added if it is properly 
-            centered and no other stars are nearby. 
-"""
-def starMake(X, Y, data, rad, blank, w, stars, length, width, dir):
-    # If the flag is changed to 1, a star with a magnitude is found.
-    flag = 0
-    # While no star has been found and while we are not searching
-    # beyond the edge of the image array
-    while flag == 0 and (X * X) < ((length - 100) * (length - 100)) \
-            and (Y * Y) < ((width - 100) * (width - 100)):
-        #Check if this pixel has more counts than a blank pixel
-        if data[X][Y] > (blank+10):
-            #Find the center of the possible star
-            tRA = Y
-            tDEC = X
-            #tRA, tDEC = findCenter(Y, X, data)
-            #Set the radius of the star to the radius used
-            tR = rad
-            #Get the counts in the possible star
-            tC = starCount(tRA, tDEC, data, tR, blank)
-            #Get the actual coordinates of the star
-            # lon, lat = w.all_pix2world(tRA, tDEC, 0) #Line used for manual magnitude
-            skyC = SkyCoord.from_pixel(tRA, tDEC, w)
-            #Get the magnitude of the star and check it
-            customSimbad = Simbad()
-            customSimbad.add_votable_fields('flux(V)')
-            result = customSimbad.query_region(skyC) #This line creates errors
-            if not(result is None):
-                Vmag = result['FLUX_V']
-                if len(Vmag) == 1:
-                    stars.append(Star(result['MAIN_ID'][0], tRA, tDEC, tR, tC, Vmag[0]))
-                    flag = 1
-            """
-            # This code segment is used for manual input of magnitudes
-            print(dir, ": What is the magnitude of the star at ", lon, lat,
-                  ", if that star has no magnitude, please enter 100.")
-            mag = input()
-            # Check if the star has a magnitude, set flag to 1 if yes and add
-            # to stars array
-            if float(mag) != float(100):
-                stars.append(Star(tRA, tDEC, tR, tC, mag))
-                flag = 1
-            """
-            if dir == 1:
-                X = X + 100
-                Y = Y + 100
-            elif dir == 2:
-                X = X + 100
-            elif dir == 3:
-                X = X + 100
-                Y = Y - 100
-            elif dir == 4:
-                Y = Y - 100
-            elif dir == 5:
-                X = X - 100
-                Y = Y - 100
-            elif dir == 6:
-                X = X - 100
-            elif dir == 7:
-                X = X - 100
-                Y = Y + 100
-            elif dir == 8:
-                Y = Y + 100
-        if dir == 1:
-            X = X + 1
-            Y = Y + 1
-        elif dir == 2:
-            X = X + 1
-        elif dir == 3:
-            X = X + 1
-            Y = Y - 1
-        elif dir == 4:
-            Y = Y - 1
-        elif dir == 5:
-            X = X - 1
-            Y = Y - 1
-        elif dir == 6:
-            X = X - 1
-        elif dir == 7:
-            X = X - 1
-            Y = Y + 1
-        elif dir == 8:
-            Y = Y + 1
-    return stars
-
-"""
 NAME:       findOtherStars
 RETURNS:    Array of other star objects
 PARAMETERS: Center of target star RA (ra)
@@ -339,52 +240,33 @@ PURPOSE:    This method locates stars nearby the target stars
             and then calls a helper method to construct a star
             object for the located stars.
 """
-def findOtherStars(ra, dec, data, rad, blank, w):
-    length = len(data)
-    width = len(data[0])
-    #Create an empty stars array to fill
+def findOtherStars(Y, X, data, rad, blank, w):
     stars = []
-
-    # TOP RIGHT
-    X = dec + rad + 10
-    Y = ra + rad + 10
-    stars = starMake(X, Y, data, rad, blank, w, stars, length, width, 1)
-
-    # RIGHT
-    X = dec + rad + 10
-    Y = ra
-    stars = starMake(X, Y, data, rad, blank, w, stars, length, width, 2)
-
-    # BOTTOM RIGHT
-    X = dec + rad + 10
-    Y = ra - rad - 10
-    stars = starMake(X, Y, data, rad, blank, w, stars, length, width, 3)
-
-    # BOTTOM
-    X = dec
-    Y = ra - rad - 10
-    stars = starMake(X, Y, data, rad, blank, w, stars, length, width, 4)
-
-    # BOTTOM LEFT
-    X = dec - rad - 10
-    Y = ra - rad - 10
-    stars = starMake(X, Y, data, rad, blank, w, stars, length, width, 5)
-
-    # LEFT
-    X = dec - rad - 10
-    Y = ra
-    stars = starMake(X, Y, data, rad, blank, w, stars, length, width, 6)
-
-    # TOP LEFT
-    X = dec - rad - 10
-    Y = ra + rad + 10
-    stars = starMake(X, Y, data, rad, blank, w, stars, length, width, 7)
-
-    # TOP
-    X = dec
-    Y = ra + rad + 10
-    stars = starMake(X, Y, data, rad, blank, w, stars, length, width, 8)
-
+    skyC = SkyCoord.from_pixel(X, Y, w)
+    # Query all stars in the image
+    customSimbad = Simbad()
+    customSimbad.add_votable_fields('flux(V)')
+    result = customSimbad.query_region(skyC, radius='0d13m0s')  # This line creates errors
+    if not (result is None):
+        name = result['MAIN_ID']
+        ra = result['RA']
+        dec = result['DEC']
+        mag = result['FLUX_V']
+        x = 0
+        for i in range(len(mag)):
+            if type(mag[i]) is np.float32:
+                tempRa = (str(ra[i])).split()
+                tempDec = (str(dec[i])).split()
+                tempRa2 = []
+                tempDec2 = []
+                for j in range(len(tempRa)):
+                    tempRa2.append(float(tempRa[j]))
+                    tempDec2.append(float(tempDec[j]))
+                degreeRa = (tempRa2[0]*15) + ((tempRa2[1]/60)*15) + ((tempRa2[2]/3600)*15)
+                degreeDec = tempDec2[0] + (tempDec2[1]/60) + (tempDec2[2]/3600)
+                starX, starY = w.all_world2pix(degreeRa, degreeDec, 0)
+                stars.append(Star(name[i], degreeRa, degreeDec, rad, starCount(starY, starX, data, rad, blank), mag[i], 0))
+                x = x+1
     return stars
 
 """
@@ -401,8 +283,7 @@ def printReferenceToFile(stars, w):
     file.write("Name,Right Ascension (Decimal Degrees),Declination (Decimal Degrees),Radius (pixels),Photons,Magnitude,\n")
     # For each reference star, print all categories
     for i in range(len(stars)):
-        realRA, realDec = w.all_pix2world(stars[i].ra, stars[i].dec, 0)
-        file.write(str(stars[i].id) + "," + str(realRA) + "," + str(realDec)
+        file.write(str(stars[i].id) + "," + str(stars[i].ra) + "," + str(stars[i].dec)
         + "," + str(stars[i].radius) + "," + str(stars[i].counts) +
                    "," + str(stars[i].magnitude) + ", \n")
     file.close()
@@ -425,7 +306,7 @@ def readFromFile(fileName, radius, data, blank, w):
             starTable = aperture_photometry(data, aperture)
             starPhotons = starTable['aperture_sum'][0]
             starPhotons = starPhotons - ((math.pi * radius * radius) * blank)
-            stars.append(Star(array[0], pixRA, pixDec, radius, starPhotons, float(array[5])))
+            stars.append(Star(array[0], pixRA, pixDec, radius, starPhotons, float(array[5]), array[6]))
     return stars
 
 """
@@ -492,26 +373,31 @@ PURPOSE:    Calculates the average magnitude of the target star given the
 def calculateMagnitudeAndError(targetStarPhotons, stars):
     # Find the magnitude relative to each other star, and then averages them
     ave = 0
-    magnitudes = []
     std = 0
     # Calculate average magnitude
+    toRemove = []
     for i in range(len(stars)):
         if (targetStarPhotons > 0) and (stars[i].counts > 0):
-            magnitudes.append((-2.5) * math.log10(targetStarPhotons / stars[i].counts)
+            stars[i].targetMagnitude = ((-2.5) * math.log10(targetStarPhotons / stars[i].counts)
                               + float(stars[i].magnitude))
             ave = ave + ((-2.5) * math.log10(targetStarPhotons / stars[i].counts)
                          + float(stars[i].magnitude))
-    if len(magnitudes) == 0:
+        else:
+            stars[i].targetMagnitude = 0
+            toRemove.append(stars[i])
+    for i in range(len(toRemove)):
+        stars.remove(toRemove[i])
+    if len(stars) == 0:
         # If the magnitude cannot be calculated for any reference star, exit
-        return 0;
-    ave = ave / len(magnitudes)
+        return 0
+    ave = ave / len(stars)
 
     # Calculate standard deviation of magnitudes for error
-    for i in range(len(magnitudes)):
-        std = std + ((magnitudes[i] - ave) * (magnitudes[i] - ave))
-    std = std / len(magnitudes)
+    for i in range(len(stars)):
+        std = std + ((stars[i].targetMagnitude - ave) * (stars[i].targetMagnitude - ave))
+    std = std / len(stars)
     std = math.sqrt(std)
-    return ave, std, magnitudes
+    return ave, std, stars
 
 """
 NAME:       letsGo
@@ -598,45 +484,42 @@ def letsGo(targetStarRA, targetStarDec,
     targetStarPhotons = starCount(Y, X, hdul[0].data, radius, blankSkyPhotons)
 
     # Find reference stars
-    if readFlag == 0:
-        # Finding new stars automatically
-        stars = findOtherStars(Y, X, hdul[0].data, radius, blankSkyPhotons, w)
-    elif readFlag == 1:
+    if readFlag == 1:
         # Read in reference stars from file
         stars = readFromFile(readInReferenceFilename, radius, hdul[0].data, blankSkyPhotons, w)
+    else:
+        # Finding new stars automatically
+        stars = findOtherStars(Y, X, hdul[0].data, radius, blankSkyPhotons, w)
 
     # Calculate magnitudes, average, and error
-    ave, std, magnitudes = calculateMagnitudeAndError(targetStarPhotons, stars)
+    ave, std, stars = calculateMagnitudeAndError(targetStarPhotons, stars)
 
     # Remove outliers
     if std >= (ave/20):
         print("I calculate there may be some outliers in the data. Review this list "
               + "below for outliers: ")
-        for i in range(len(magnitudes)):
-            print(str(i+1) + ") " + str(magnitudes[i]))
+        for i in range(len(stars)):
+            print(str(i+1) + ") " + str(stars[i].targetMagnitude))
         print("The calculated average magnitude is " + str(ave) +" and the calculated error is "
               + str(std) + ".")
         print("\nPlease input the number next to the magnitudes you want to remove from the calculations: "
               + "(enter 100 if there are no more outliers to remove) ")
         x = input()
         x = int(x)
-        toRemove = []
         toRemoveStars = []
         while x != 100:
-            toRemove.append(magnitudes[x-1])
             toRemoveStars.append(stars[x-1])
             x = input()
             x = int(x)
-        for i in range(len(toRemove)):
-            magnitudes.remove(toRemove[i])
+        for i in range(len(toRemoveStars)):
             stars.remove(toRemoveStars[i])
 
         # Recalculate average magnitude and standard deviation without outliers
-        ave, std, magnitudes = calculateMagnitudeAndError(targetStarPhotons, stars)
+        ave, std, stars = calculateMagnitudeAndError(targetStarPhotons, stars)
 
     # Console output
-    #print("The magnitude of the star is ", ave )
-    #print("The error of this calculation is ", std)
+    print("The magnitude of the star is ", ave )
+    print("The error of this calculation is ", std)
 
     # Printing reference stars to files
     if printFlag == 1:
