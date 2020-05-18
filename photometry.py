@@ -261,6 +261,11 @@ def findOtherStars(Y, X, data, rad, blank, w):
                 x = x+1
     return stars
 
+# Truncation function from https://realpython.com/python-rounding/#truncation
+def truncate(n, decimals=0):
+    multiplier = 10 ** decimals
+    return int(n * multiplier) / multiplier
+
 """
 NAME:       printReferenceToFile
 RETURNS:    Nothing
@@ -276,8 +281,11 @@ def printReferenceToFile(stars, filename="stars.csv"):
     file.write("Name,Right Ascension (Decimal Degrees),Declination (Decimal Degrees),Radius (pixels),Photons,Magnitude,\n")
     # For each reference star, print all categories
     for i in range(len(stars)):
-        file.write(str(stars[i].id) + "," + str(stars[i].ra) + "," + str(stars[i].dec)
-        + "," + str(stars[i].radius) + "," + str(stars[i].counts) +
+        trRA = truncate(stars[i].ra, 6)
+        trDec = truncate(stars[i].dec, 6)
+        trC = truncate(stars[i].counts)
+        file.write(str(stars[i].id) + "," + str(trRA) + "," + str(trDec)
+        + "," + str(stars[i].radius) + "," + str(trC) +
                    "," + str(stars[i].magnitude) + ", \n")
     file.close()
 
@@ -315,8 +323,11 @@ def printResultsToFile(info, filename="output.csv"):
     file = open(filename, "w")
     file.write("File Name,JD,Magnitude,Error, \n")
     for i in range(len(info)):
-        file.write(info[i].fileName + "," + str(info[i].JD) + "," + str(info[i].magnitude) + ","
-                   + str(info[i].error) + ", \n")
+        trJD = truncate(info[i].JD, 6)
+        trMag = truncate(info[i].magnitude, 2)
+        trErr = truncate(info[i].error)
+        file.write(info[i].fileName + "," + str(trJD) + "," + str(trMag) + ","
+                   + str(trErr) + ", \n")
     file.close()
 
 """
@@ -338,12 +349,12 @@ def plotResultsFile(filename, chartname="chart.pdf"):
             mag.append(float(array[2]))
             err.append(float(array[3]))
     # Smooth line print
-    xnew = np.linspace(min(jd), max(jd), 300)
-    spl = make_interp_spline(jd, mag, k=3)  # type: BSpline
-    power_smooth = spl(xnew)
-    plt.plot(xnew, power_smooth)
+    #xnew = np.linspace(min(jd), max(jd), 300)
+    #spl = make_interp_spline(jd, mag, k=3)  # type: BSpline
+    #power_smooth = spl(xnew)
+    #plt.plot(xnew, power_smooth)
     # Chart Title
-    plt.title('Light Curve of DW Cnc from February 15th to March 29th')
+    plt.title('Light Curve')
     # Error bars
     plt.errorbar(jd, mag, err, fmt='ko')
     # X axis label
@@ -393,6 +404,16 @@ def calculateMagnitudeAndError(targetStarPhotons, stars):
     std = std / len(stars)
     std = math.sqrt(std)
     return ave, std, stars
+
+"""
+NAME:       worldCoordinateSystem
+RETURNS:    World coordinate system constant
+PARAMETERS: An unwrapped .fits container (hdul)
+PURPOSE:    Uses the .fits data to return the world coordinate system.
+"""
+def worldCoordinateSystem(hdul):
+    w = wcs.WCS(hdul[0].header)
+    return w
 
 """
 NAME:       letsGo
@@ -455,7 +476,7 @@ def letsGo(targetStarRA, targetStarDec,
         return 0
     # Calculate magnitude
     # w is the reference of world coordinates for this image
-    w = wcs.WCS(hdul[0].header)
+    w = worldCoordinateSystem(hdul)
 
     # Convert COORDINATE system data into pixel locations for the image
     X, Y = w.all_world2pix(targetStarRA, targetStarDec, 0)
