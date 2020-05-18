@@ -1,35 +1,29 @@
 from __future__ import division
 from astroquery.simbad import Simbad
-from astroquery.vizier import Vizier
 from scipy.interpolate import make_interp_spline, BSpline
 
-import matplotlib.pyplot as plt
 from photutils import CircularAperture
-from photutils import Background2D, MedianBackground
+from photutils import Background2D
 from astropy.io import fits
 from astropy import wcs
 from photutils import aperture_photometry
-import astropy.coordinates as coord
 import numpy as np
 import math
 import matplotlib.pyplot as plt
 from astropy.coordinates import SkyCoord
-from matplotlib.colors import LogNorm
-from skimage import data, img_as_float
-from skimage import exposure
 import glob
 import os
 
 
 class Star:
-    def __init__(self, id, r, d, rad, c, m, targetM):
+    def __init__(self, id, ra, dec, radius, counts, magnitude, targetMagnitude):
         self.id = id
-        self.ra = r #Pixel location
-        self.dec = d #Pixel location
-        self.radius = rad
-        self.counts = c
-        self.magnitude = m
-        self.targetMagnitude = targetM
+        self.ra = ra #Pixel location
+        self.dec = dec #Pixel location
+        self.radius = radius
+        self.counts = counts
+        self.magnitude = magnitude
+        self.targetMagnitude = targetMagnitude
 
 
 class Photometry:
@@ -111,15 +105,13 @@ def findCenter(Y, X, data):
 """
 NAME:       findBlankNoRad
 RETURNS:    Average counts in blank sky
-PARAMETERS: Center of star pixel Y location (ra)
-            Center of star pixel X location (dec)
-            Array of image data for the sky (data1)
+PARAMETERS: Array of image data for the sky (data)
 PURPOSE:    In the case the FWHM cannot be used as the radius
             of the star, this function can be used to find the 
             counts in a blank portion of the sky without the 
             radius of the main star.
 """
-def findBlankNoRad():
+def findBlankNoRad(data):
     # Using Background2d to get a median background count
     background = Background2D(data, (100, 100))
     return background.background_median
@@ -140,7 +132,7 @@ def findRadius(Y, X, data):
     currY = Y
     currX = X
     #Blank is the number of counts per pixel in empty sky
-    blank = findBlankNoRad()
+    blank = findBlankNoRad(data)
     r1 = 0
     r2 = 0
     r3 = 0
@@ -273,12 +265,13 @@ def findOtherStars(Y, X, data, rad, blank, w):
 NAME:       printReferenceToFile
 RETURNS:    Nothing
 PARAMETERS: Array of star objects (stars)
+            .csv Filename to output (filename)
 PURPOSE:    This method prints out a file containing
             the stars used for calculating magnitude
 """
-def printReferenceToFile(stars, w):
+def printReferenceToFile(stars, filename="stars.csv"):
     # Create new file, stars.csv
-    file = open("stars.csv", "w")
+    file = open(filename, "w")
     # Create the heading
     file.write("Name,Right Ascension (Decimal Degrees),Declination (Decimal Degrees),Radius (pixels),Photons,Magnitude,\n")
     # For each reference star, print all categories
@@ -313,12 +306,13 @@ def readFromFile(fileName, radius, data, blank, w):
 NAME:       printResultsToFile
 RETURNS:    nothing
 PARAMETERS: An array of Photometry objects (info)
+            .csv file for output (filename)
 PURPOSE:    Output a file with the file name,
             the JD (Julian Date) of the observation, the magnitude 
             reported, and the error of that reported magnitude
 """
-def printResultsToFile(info):
-    file = open("output.csv", "w")
+def printResultsToFile(info, filename="output.csv"):
+    file = open(filename, "w")
     file.write("File Name,JD,Magnitude,Error, \n")
     for i in range(len(info)):
         file.write(info[i].fileName + "," + str(info[i].JD) + "," + str(info[i].magnitude) + ","
@@ -331,7 +325,7 @@ RETURNS:    nothing
 PARAMETERS: An output filename
 PURPOSE:    Creates a light curve with error bars
 """
-def plotResultsFile(filename):
+def plotResultsFile(filename, chartname="chart.pdf"):
     # Read in output values from file
     file = open(filename, "r")
     jd = []
@@ -359,11 +353,12 @@ def plotResultsFile(filename):
     # Inverting the y axis because a smaller magnitude is a brighter object
     plt.gca().invert_yaxis()
     plt.show()  # to print to screen
-    plt.savefig("chart.pdf")  # to save to file
+    plt.savefig(chartname)  # to save to file
 
 """
 NAME:       calculateMagnitudeAndError
-RETURNS:    Average magnitude and error of the magnitude measurement
+RETURNS:    Average magnitude, error of the magnitude measurement, and array of stars
+            with valid magnitude calculations (i.e. visible)
 PARAMETERS: A number values representing the counts in the target star (targetStarCounts)
             An array of Star objects representing reference stars (stars)
 PURPOSE:    Calculates the average magnitude of the target star given the 
@@ -518,12 +513,12 @@ def letsGo(targetStarRA, targetStarDec,
         ave, std, stars = calculateMagnitudeAndError(targetStarPhotons, stars)
 
     # Console output
-    print("The magnitude of the star is ", ave )
-    print("The error of this calculation is ", std)
+    #print("The magnitude of the star is ", ave )
+    #print("The error of this calculation is ", std)
 
     # Printing reference stars to files
     if printFlag == 1:
-        printReferenceToFile(stars, w)
+        printReferenceToFile(stars)
 
     # Create and return the results of the photometry
     ans = Photometry(mainFile, hdul[0].header['JD'], ave, std)
