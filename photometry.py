@@ -275,7 +275,11 @@ PURPOSE:    This method prints out a file containing
             the stars used for calculating magnitude
 """
 def printReferenceToFile(stars, filename="stars.csv"):
-    # Create new file, stars.csv
+    # Create new output directory if none exists
+    if not os.path.exists("Output"):
+        os.mkdir("Output")
+    # Create new file
+    filename = "Output/" + filename
     file = open(filename, "w")
     # Create the heading
     file.write("Name,Right Ascension (Decimal Degrees),Declination (Decimal Degrees),Radius (pixels),Photons,Magnitude,\n")
@@ -320,6 +324,11 @@ PURPOSE:    Output a file with the file name,
             reported, and the error of that reported magnitude
 """
 def printResultsToFile(info, filename="output.csv"):
+    # Create new output directory if none exists
+    if not os.path.exists("Output"):
+        os.mkdir("Output")
+    # Create new file
+    filename = "Output/" + filename
     file = open(filename, "w")
     file.write("File Name,JD,Magnitude,Error, \n")
     for i in range(len(info)):
@@ -336,7 +345,10 @@ RETURNS:    nothing
 PARAMETERS: An output filename
 PURPOSE:    Creates a light curve with error bars
 """
-def plotResultsFile(filename, chartname="chart.pdf"):
+def plotResultsFile(filename, chartname="chart.pdf", chartTitle="Light Curve"):
+    # Create new output directory if none exists
+    if not os.path.exists("Output"):
+        os.mkdir("Output")
     # Read in output values from file
     file = open(filename, "r")
     jd = []
@@ -354,7 +366,7 @@ def plotResultsFile(filename, chartname="chart.pdf"):
     #power_smooth = spl(xnew)
     #plt.plot(xnew, power_smooth)
     # Chart Title
-    plt.title('Light Curve')
+    plt.title(chartTitle)
     # Error bars
     plt.errorbar(jd, mag, err, fmt='ko')
     # X axis label
@@ -364,6 +376,7 @@ def plotResultsFile(filename, chartname="chart.pdf"):
     # Inverting the y axis because a smaller magnitude is a brighter object
     plt.gca().invert_yaxis()
     plt.show()  # to print to screen
+    chartname = "Output/" + chartname
     plt.savefig(chartname)  # to save to file
 
 """
