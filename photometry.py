@@ -1,6 +1,9 @@
 from __future__ import division
+from __future__ import print_function
 from astroquery.simbad import Simbad
 from scipy.interpolate import make_interp_spline, BSpline
+
+from client import Client
 
 from photutils import CircularAperture
 from photutils import Background2D
@@ -13,6 +16,22 @@ import matplotlib.pyplot as plt
 from astropy.coordinates import SkyCoord
 import glob
 import os
+import json
+import requests
+
+import sys
+import time
+import base64
+import optparse
+import threading
+import io
+from email.generator import Generator
+
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.application  import MIMEApplication
+from email.encoders import encode_noop
+import json
 
 """
 Star objects contain everything that makes a star a star, including
@@ -146,7 +165,7 @@ def findRadius(Y, X, data):
     currY = Y
     currX = X
     #Blank is the number of counts per pixel in empty sky
-    blank = findBlankNoRad(data)
+    blank = findBlankNoRad(data) * 1.5
     r1 = 0
     r2 = 0
     r3 = 0
@@ -466,6 +485,37 @@ def worldCoordinateSystem(hdul):
     return w
 
 """
+NAME:       getWCS
+RETURNS:    New .fits file with WCS included
+PARAMETERS: API key for user login to astrometry.net (key)
+            Name of the file to be submitted (file)
+PURPOSE:    Add WCS header to .fits file without one using astrometry.net
+"""
+def getWCS(key, file):
+    astrometry = Client()
+    astrometry.login(key)
+    response = astrometry.upload(fn=file)
+    jobid = astrometry.myjobs()[0]
+    #print(subid)
+    joburl = 'http://nova.astrometry.net/new_fits_file/' + str(jobid)
+    #print(joburl)
+    results = requests.get(joburl, allow_redirects=True)
+    #print(results)
+    filename = "CORRECTED_" + file
+    file = open(filename, 'wb')
+    file.write(results.content)
+    file.close()
+    check = True
+    while check:
+        try:
+            hdul = fits.open(filename)
+            check = False
+        except OSError:
+            check = True
+
+
+
+"""
 NAME:       letsGo
 RETURNS:    A Photometry object with the data gained during 
             this process OR 0 if the magnitude cannot be
@@ -474,6 +524,7 @@ PARAMETERS: The right ascension of the target star in
             Decimal Degrees (targetStarRA)
             The declination of the target star in
             Decimal Degrees (targetStarDec)
+            The apikey for use with astrometry.net (key)
             The main .fits file with the image data name (mainFile)
             The dark frame .fits file name (darkFrame)
                 NOTE: Not used when calibrationFlag = 0
@@ -512,7 +563,7 @@ PARAMETERS: The right ascension of the target star in
 PURPOSE:    This method combines the methods in this file to perform 
             full differential photometry on one image file. 
 """
-def letsGo(targetStarRA, targetStarDec,
+def letsGo(targetStarRA, targetStarDec, key,
            mainFile, darkFrame, flatField, biasFrame=0,
            calibrationFlag=1, calibrationOutputFlag=0, calibrationFile="output.fits",
            readFlag=0, magnitudeFlag=1, fwhmFlag=1,
@@ -535,10 +586,35 @@ def letsGo(targetStarRA, targetStarDec,
     else:
         # Use the raw image
         hdul = fits.open(mainFile)
-
     if magnitudeFlag == 0:
         # Leave the function if not calculating magnitude
         return 0
+
+    # Check if the file has WCS data
+    try:
+        hdul[0].header['CRVAL1']
+    except KeyError:
+        getWCS(key, mainFile)
+        mainFile = "CORRECTED_" + mainFile
+        if calibrationFlag == 1:
+            # Calibrate the image
+            if biasFrame == 0:
+                # No bias
+                hdul = calibrate(mainFile, darkFrame, flatField)
+            else:
+                # Bias
+                hdul = calibrate(mainFile, darkFrame, flatField, bias=biasFrame)
+            # Print calibrated image to output
+            # Create new output directory if none exists
+            if not os.path.exists("Output"):
+                os.mkdir("Output")
+            if calibrationOutputFlag == 1:
+                calibrationFile = "Output/" + calibrationFile
+                hdul.writeto(calibrationFile, overwrite=True)
+        else:
+            # Use the raw image
+            hdul = fits.open(mainFile)
+
     # Calculate magnitude
     # w is the reference of world coordinates for this image
     w = worldCoordinateSystem(hdul)
@@ -554,7 +630,10 @@ def letsGo(targetStarRA, targetStarDec,
     #pixRA, pixDec = findCenter(int(Y), int(X), hdul[0].data)
 
     if fwhmFlag == 1:
-        radius = int(3 * hdul[0].header['FWHM'])
+        try:
+            radius = int(3 * hdul[0].header['FWHM'])
+        except KeyError:
+            radius = findRadius(Y, X, hdul[0].data)
     else:
         # Set the radius to the distance from the center
         # of the star to the farthest edge of the star
@@ -621,6 +700,7 @@ PARAMETERS: The right ascension of the target star in
             Decimal Degrees (targetStarRA)
             The declination of the target star in
             Decimal Degrees (targetStarDec)
+            The apikey for use with astrometry.net (key)
             Directory containing files to process (dirName)
             The main .fits file with the image data name (mainFile)
             The dark frame .fits file name (darkFrame)
@@ -658,7 +738,7 @@ PURPOSE:    Calculates the average magnitude of the target star given the
             reference stars, and the error in that measurement by calculating
             standard deviation of the calculated magnitudes.
 """
-def runFiles(targetStarRA, targetStarDec,
+def runFiles(targetStarRA, targetStarDec, key,
             dirName, dark, flat, bias=0,
             calibrationFlag=1, calibrationOutputFlag=0, calibrationOutputFile="output.fits",
             readFlag=0, magnitudeFlag=1, fwhmFlag=1,
@@ -684,7 +764,7 @@ def runFiles(targetStarRA, targetStarDec,
         with open(os.path.join(os.getcwd(), filename), 'r') as f:
             # Check if file is data
             if filename != darkFull and filename != flatFull and filename != biasFull:
-                x = letsGo(targetStarRA, targetStarDec, filename, darkFull, flatFull, biasFrame=biasFull,
+                x = letsGo(targetStarRA, targetStarDec, key, filename, darkFull, flatFull, biasFrame=biasFull,
                 calibrationFlag=calibrationFlag, calibrationOutputFlag=calibrationOutputFlag,
                 calibrationFile=calibrationOutputFile,
                 readFlag=readFlag, magnitudeFlag=magnitudeFlag, fwhmFlag=fwhmFlag,
@@ -694,7 +774,7 @@ def runFiles(targetStarRA, targetStarDec,
     for filename in glob.glob(os.path.join(path, '*.fts')):
         with open(os.path.join(os.getcwd(), filename), 'r') as f:
             if filename != darkFull and filename != flatFull and filename != biasFull:
-                x = letsGo(targetStarRA, targetStarDec, filename, darkFull, flatFull, biasFrame=biasFull,
+                x = letsGo(targetStarRA, targetStarDec, key, filename, darkFull, flatFull, biasFrame=biasFull,
                            calibrationFlag=calibrationFlag, calibrationOutputFlag=calibrationOutputFlag,
                            calibrationFile=calibrationOutputFile,
                            readFlag=readFlag, magnitudeFlag=magnitudeFlag, fwhmFlag=fwhmFlag,
