@@ -14,6 +14,7 @@ Build successful
  - SIMBAD
  - numpy
  - matplotlib
+ - astrometry.net
  
 # Features
  - Calibration of .fits data and output of calibrated .fits file
@@ -44,7 +45,7 @@ All of the functions in the program have documentation above them describing wha
 Feel free to download this project and change it to suit your needs!
 
 # Credit 
-This project was inspired by using the Great Basin Observatory telescope in the Great Basin National Park. Great thanks to the astropy library.
+This project was inspired by using the Great Basin Observatory telescope in the Great Basin National Park. Great thanks to the astropy library. This project uses a modified version of the astrometry.net client.py file.
 
 # License 
 GNU @ Alexis Tudor
