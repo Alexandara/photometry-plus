@@ -41,7 +41,7 @@ the magnitude of the star and the magnitude calculated for the
 target star using this star.
 """
 class Star:
-    def __init__(self, id, ra, dec, radius, counts, magnitude, targetMagnitude):
+    def __init__(self, id, ra, dec, radius, counts, magnitude, targetMagnitude, error):
         self.id = id
         self.ra = ra #Pixel location
         self.dec = dec #Pixel location
@@ -49,6 +49,7 @@ class Star:
         self.counts = counts
         self.magnitude = magnitude
         self.targetMagnitude = targetMagnitude
+        self.error = error #Error of the star with background counts included
 
 """
 Photometry objects contain the results of differential photometry.
@@ -162,8 +163,10 @@ PURPOSE:    This finds the radius of a target star by detecting
 def findRadius(Y, X, data):
 
     x, y = data.shape
+    print(x,y)
     currY = Y
     currX = X
+    print(currY, currX)
     #Blank is the number of counts per pixel in empty sky
     blank = findBlankNoRad(data) * 1.5
     r1 = 0
@@ -172,6 +175,7 @@ def findRadius(Y, X, data):
     r4 = 0
     #Find the distance it takes each direction to get to blank sky
     while data[currX][currY] > blank:
+        print(currY)
         currY = currY + 1
         if currY >= y:
             currY = Y
@@ -240,6 +244,8 @@ PURPOSE:    Taking in information about any star, this method counts
 """
 def starCount(Y, X, data, r, blank):
     # Creates an aperture centered around the target star of radius r
+    if r <= 0:
+        r = 20
     targetAperture = CircularAperture((X, Y), r=r)
     targetStarTable = aperture_photometry(data, targetAperture)
     # Counts the sum in that aperture
@@ -292,8 +298,13 @@ def findOtherStars(Y, X, data, rad, blank, w):
                 degreeRa = (tempRa2[0]*15) + ((tempRa2[1]/60)*15) + ((tempRa2[2]/3600)*15)
                 degreeDec = tempDec2[0] + (tempDec2[1]/60) + (tempDec2[2]/3600)
                 starX, starY = w.all_world2pix(degreeRa, degreeDec, 0)
+                # Calculate counts in the star
+                c = starCount(starY, starX, data, rad, blank)
+                # Calculate the error for this star
+                area = rad*rad*math.pi
+                sigmaSrc = math.sqrt(c+(area*blank))
                 # Addition of this star to the array of stars objects
-                stars.append(Star(name[i], degreeRa, degreeDec, rad, starCount(starY, starX, data, rad, blank), mag[i], 0))
+                stars.append(Star(name[i], degreeRa, degreeDec, rad, c, mag[i], 0, sigmaSrc))
                 x = x+1
     return stars
 
@@ -327,15 +338,18 @@ def printReferenceToFile(stars, filename="stars.csv"):
     filename = "Output/" + filename
     file = open(filename, "w")
     # Create the heading
-    file.write("Name,Right Ascension (Decimal Degrees),Declination (Decimal Degrees),Radius (pixels),Photons,Magnitude,\n")
+    file.write("Name,Right Ascension (Decimal Degrees),Declination (Decimal Degrees),Radius (pixels),Photons,Magnitude,Calculated Target Magnitude,Error,\n")
     # For each reference star, print all categories
     for i in range(len(stars)):
         trRA = truncate(stars[i].ra, 6)
         trDec = truncate(stars[i].dec, 6)
         trC = truncate(stars[i].counts)
+        trTM = truncate(stars[i].targetMagnitude, 2)
+        trE = truncate(stars[i].error)
         file.write(str(stars[i].id) + "," + str(trRA) + "," + str(trDec)
         + "," + str(stars[i].radius) + "," + str(trC) +
-                   "," + str(stars[i].magnitude) + ", \n")
+                   "," + str(stars[i].magnitude) + "," + str(trTM) + "," + str(trE) + ", \n")
+    file.flush()
     file.close()
 
 """
@@ -360,7 +374,7 @@ def readFromFile(fileName, radius, data, blank, w):
             # Calculate counts for this image
             starPhotons = starCount(Y, X, data, radius, blank)
             # Create a star object
-            stars.append(Star(array[0], float(array[1]), float(array[2]), radius, starPhotons, float(array[5]), array[6]))
+            stars.append(Star(array[0], float(array[1]), float(array[2]), radius, starPhotons, float(array[5]), float(array[6]), float(array[7])))
     return stars
 
 """
@@ -441,14 +455,16 @@ RETURNS:    Average magnitude, error of the magnitude measurement, and array of 
             with valid magnitude calculations (i.e. visible stars)
 PARAMETERS: A number values representing the counts in the target star (targetStarCounts)
             An array of Star objects representing reference stars (stars)
+            stdFlag:
+                Set 0 to use weighted magnitudes, set to 1 to use standard deviation
 PURPOSE:    Calculates the average magnitude of the target star given the 
             reference stars, and the error in that measurement by calculating
             standard deviation of the calculated magnitudes.
 """
-def calculateMagnitudeAndError(targetStarPhotons, stars):
+def calculateMagnitudeAndError(targetStarPhotons, stars, rad, blank, stdFlag=0):
     # Find the magnitude relative to each other star, and then averages them
     ave = 0
-    std = 0
+    error = 0
     # Calculate average magnitude
     toRemove = []
     for i in range(len(stars)):
@@ -464,15 +480,45 @@ def calculateMagnitudeAndError(targetStarPhotons, stars):
         stars.remove(toRemove[i])
     if len(stars) == 0:
         # If the magnitude cannot be calculated for any reference star, exit
-        return 0
+        return 0, 0, 0
     ave = ave / len(stars)
 
-    # Calculate standard deviation of magnitudes for error
-    for i in range(len(stars)):
-        std = std + ((stars[i].targetMagnitude - ave) * (stars[i].targetMagnitude - ave))
-    std = std / len(stars)
-    std = math.sqrt(std)
-    return ave, std, stars
+    # Calculate  error
+    w = []
+    if stdFlag == 0:
+        #Standard deviation as error
+        for i in range(len(stars)):
+            error = error + ((stars[i].targetMagnitude - ave) * (stars[i].targetMagnitude - ave))
+        error = error / len(stars)
+        error = math.sqrt(error)
+    else:
+        # Error for weighted magnitudes
+        a = math.pi * rad * rad
+        sigmaS = math.sqrt(targetStarPhotons + (a*blank))
+        sigmaBkg = math.sqrt(blank * a)
+        sigmaS = math.sqrt(sigmaS**2 + sigmaBkg**2)
+        for i in range(len(stars)):
+            pixSrc = stars[i].radius * stars[i].radius * math.pi
+            sigmaBkg = math.sqrt(blank*pixSrc)
+            sigmaR = math.sqrt(stars[i].error**2 + sigmaBkg**2)
+            sigmaMag = 0
+            S = sigmaS**2 * (1.086/targetStarPhotons)**2
+            R = sigmaR**2 * (1.086 / targetStarPhotons) **2
+            M = sigmaMag**2
+            sigmaI = math.sqrt(S + R + M)
+            w.append(1/(sigmaI**2)) # Weights for the magnitudes
+        # Calculate actual weighted magnitudes
+        weightedAve = 0
+        weightSum = 0
+        magnitudeSum = 0
+        for i in range(len(stars)):
+            weightedAve = weightedAve + (stars[i].targetMagnitude * w[i])
+            weightSum = weightSum + w[i]
+        ave = weightedAve/weightSum
+        for i in range(len(stars)):
+            magnitudeSum = magnitudeSum + ((stars[i].targetMagnitude - ave)**2)
+        error = math.sqrt(magnitudeSum/((len(stars)-1) * weightSum))
+    return ave, error, stars
 
 """
 NAME:       worldCoordinateSystem
@@ -489,31 +535,58 @@ NAME:       getWCS
 RETURNS:    New .fits file with WCS included
 PARAMETERS: API key for user login to astrometry.net (key)
             Name of the file to be submitted (file)
+            checkupFlag:
+                Set to 0 for no print statements, set to 1 for printed updates
 PURPOSE:    Add WCS header to .fits file without one using astrometry.net
 """
-def getWCS(key, file):
+def getWCS(key, file, checkupFlag=0):
+    # Log in to astrometry.net
+    if checkupFlag == 1:
+        print("Starting getWCS")
     astrometry = Client()
     astrometry.login(key)
+    if checkupFlag == 1:
+        print("Logged in")
+    # Upload file to astrometry.net
     response = astrometry.upload(fn=file)
+    if checkupFlag == 1:
+        print("File Uploaded")
+
+    # Get the jobid for uploaded file
     jobid = astrometry.myjobs()[0]
-    #print(subid)
+    if checkupFlag == 1:
+        print("Job ID retreived: ", jobid)
+
+    # Request final product from website
     joburl = 'http://nova.astrometry.net/new_fits_file/' + str(jobid)
-    #print(joburl)
-    results = requests.get(joburl, allow_redirects=True)
-    #print(results)
-    filename = "CORRECTED_" + file
+
+    # Create new output directory if none exists
+    if not os.path.exists("Output"):
+        os.mkdir("Output")
+    # Create filename to save to
+    splitFile = file.split('/')
+    filename = "Output/CORRECTED_" + splitFile[len(splitFile)-1]
+    if checkupFlag == 1:
+        print("File written to ", filename)
+    # Wait for the file to finish downloading before progessing
+    check = True
+    iterations = 0
+    if checkupFlag == 1:
+        print("File requested at ", joburl)
+    problem = 112
+    while problem == 112:
+        if checkupFlag == 1:
+            iterations = iterations + 1
+            if iterations%10 == 0:
+                print("File queued for processing for", iterations, "iterations. Please Hold.")
+        results = requests.get(joburl, allow_redirects=False)
+        problem = results.content[0]
     file = open(filename, 'wb')
     file.write(results.content)
     file.close()
-    check = True
-    while check:
-        try:
-            hdul = fits.open(filename)
-            check = False
-        except OSError:
-            check = True
-
-
+    if checkupFlag == 1:
+        print("File ready for use")
+    return filename
 
 """
 NAME:       letsGo
@@ -594,8 +667,7 @@ def letsGo(targetStarRA, targetStarDec, key,
     try:
         hdul[0].header['CRVAL1']
     except KeyError:
-        getWCS(key, mainFile)
-        mainFile = "CORRECTED_" + mainFile
+        mainFile = getWCS(key, mainFile)
         if calibrationFlag == 1:
             # Calibrate the image
             if biasFrame == 0:
@@ -654,16 +726,19 @@ def letsGo(targetStarRA, targetStarDec, key,
         stars = findOtherStars(Y, X, hdul[0].data, radius, blankSkyPhotons, w)
 
     # Calculate magnitudes, average, and error
-    ave, std, stars = calculateMagnitudeAndError(targetStarPhotons, stars)
+    ave, error, stars = calculateMagnitudeAndError(targetStarPhotons, stars, radius, blankSkyPhotons)
+    if ave == 0 and error == 0:
+        return 0
+
 
     # Remove outliers
-    if std >= (ave/20):
+    if error >= (ave/20):
         print("I calculate there may be some outliers in the data. Review this list "
               + "below for outliers: ")
         for i in range(len(stars)):
             print(str(i+1) + ") " + str(stars[i].targetMagnitude))
         print("The calculated average magnitude is " + str(ave) +" and the calculated error is "
-              + str(std) + ".")
+              + str(error) + ".")
         print("\nPlease input the number next to the magnitudes you want to remove from the calculations: "
               + "(enter 100 if there are no more outliers to remove) ")
         x = input()
@@ -677,19 +752,21 @@ def letsGo(targetStarRA, targetStarDec, key,
             stars.remove(toRemoveStars[i])
 
         # Recalculate average magnitude and standard deviation without outliers
-        ave, std, stars = calculateMagnitudeAndError(targetStarPhotons, stars)
+        ave, error, stars = calculateMagnitudeAndError(targetStarPhotons, stars, radius, blankSkyPhotons)
+        if ave == 0 and error == 0:
+            return 0
 
     # Console output
     if consoleFlag == 1:
         print("The magnitude of the star is ", ave )
-        print("The error of this calculation is ", std)
+        print("The error of this calculation is ", error)
 
     # Printing reference stars to files
     if printFlag == 1:
         printReferenceToFile(stars)
 
     # Create and return the results of the photometry
-    ans = Photometry(mainFile, hdul[0].header['JD'], ave, std)
+    ans = Photometry(mainFile, hdul[0].header['JD'], ave, error)
     return ans
 
 """
