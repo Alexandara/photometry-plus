@@ -1,3 +1,6 @@
+"""
+Program written by astrometry.net and modified by Alexis Tudor with permission for use in Photometry+
+"""
 #!/usr/bin/env python3
 from __future__ import print_function
 import os
