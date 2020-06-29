@@ -398,7 +398,7 @@ def printResultsToFile(info, filename="output.csv"):
     for i in range(len(info)):
         trJD = truncate(info[i].JD, 6)
         trMag = truncate(info[i].magnitude, 2)
-        trErr = truncate(info[i].error)
+        trErr = truncate(info[i].error, 6)
         file.write(info[i].fileName + "," + str(trJD) + "," + str(trMag) + ","
                    + str(trErr) + ", \n")
     file.close()
@@ -462,7 +462,7 @@ PARAMETERS: A number values representing the counts in the target star (targetSt
 PURPOSE:    Calculates the average magnitude of the target star given the 
             reference stars, and the error in that measurement.
 """
-def calculateMagnitudeAndError(targetStarPhotons, stars, targetStarError, sigmaBkg, stdFlag=0):
+def calculateMagnitudeAndError(targetStarPhotons, stars, targetStarError, sigmaBkg, stdFlag=1):
     # Find the magnitude relative to each other star, and then averages them
     ave = 0
     error = 0
@@ -486,12 +486,15 @@ def calculateMagnitudeAndError(targetStarPhotons, stars, targetStarError, sigmaB
 
     # Calculate  error
     w = []
-    if stdFlag == 0:
+    if stdFlag == 1:
         #Standard deviation as error
         for i in range(len(stars)):
             error = error + ((stars[i].targetMagnitude - ave) * (stars[i].targetMagnitude - ave))
-        error = error / len(stars)
-        error = math.sqrt(error)
+        if len(stars) <= 0 or (len(stars)-1) <= 0:
+            # If the magnitude cannot be calculated for any reference star, exit
+            return 0, 0, 0
+        error = error / (len(stars)-1)
+        error = math.sqrt(error/len(stars))
     else:
         # Error for weighted magnitudes
         sigmaS = targetStarError
@@ -517,6 +520,9 @@ def calculateMagnitudeAndError(targetStarPhotons, stars, targetStarError, sigmaB
         for i in range(len(stars)):
             magnitudeSum = magnitudeSum + ((stars[i].targetMagnitude - ave)**2)
         # Final Error
+        if ((len(stars)-1) * weightSum) == 0:
+            # If the magnitude cannot be calculated for any reference star, exit
+            return 0, 0, 0
         error = math.sqrt(magnitudeSum/((len(stars)-1) * weightSum))
         #error = math.sqrt(1/weightSum)
     return ave, error, stars
@@ -540,7 +546,7 @@ PARAMETERS: API key for user login to astrometry.net (key)
                 Set to 0 for no print statements, set to 1 for printed updates
 PURPOSE:    Add WCS header to .fits file without one using astrometry.net
 """
-def getWCS(key, file, checkupFlag=0):
+def getWCS(key, file, checkupFlag=1):
     # Log in to astrometry.net
     if checkupFlag == 1:
         print("Starting getWCS")
@@ -549,13 +555,26 @@ def getWCS(key, file, checkupFlag=0):
     if checkupFlag == 1:
         print("Logged in")
 
+    #Get previous jobid
+    oldJobid = astrometry.myjobs()[0]
+
     # Upload file to astrometry.net
+    if checkupFlag == 1:
+        print("Uploading File")
     response = astrometry.upload(fn=file)
     if checkupFlag == 1:
         print("File Uploaded")
 
-    # Get the jobid for uploaded file
+    # Get the job ID for uploaded file
+    # It is compared to the old on to make sure it is the correct job ID
     jobid = astrometry.myjobs()[0]
+    jCheck = 0
+    while oldJobid == jobid:
+        jCheck = jCheck + 1
+        jobid = astrometry.myjobs()[0]
+        if checkupFlag == 1:
+            if jCheck%10 == 0:
+                print("Preparing job ID for", jCheck, "iterations. Please hold.")
     if checkupFlag == 1:
         print("Job ID retreived: ", jobid)
 
@@ -573,14 +592,19 @@ def getWCS(key, file, checkupFlag=0):
 
     # Wait for the file to finish downloading before progessing
     check = True
-    iterations = 0
     problem = 112
     while problem == 112:
-        if checkupFlag == 1:
-            iterations = iterations + 1
-            if iterations%10 == 0:
-                print("File queued for processing for", iterations, "iterations. Please Hold.")
+        status = astrometry.job_status(jobid)
+        solve = 0
+        while(status == 'solving'):
+            status = astrometry.job_status(jobid)
+            if checkupFlag == 1:
+                solve = solve + 1
+                if solve % 50 == 0:
+                    print("File solving for", solve, "iterations. Please hold.")
         results = requests.get(joburl, allow_redirects=False)
+        if astrometry.job_status(jobid) == 'failure':
+            return 0
         problem = results.content[0]
 
     #Writing results to file
@@ -652,12 +676,25 @@ def letsGo(targetStarRA, targetStarDec, key,
         # Leave the function if not calculating magnitude
         return 0
 
+    # Calculate magnitude
+    # w is the reference of world coordinates for this image
+    w = worldCoordinateSystem(hdul)
+
+    # Convert COORDINATE system data into pixel locations for the image
+    X, Y = w.all_world2pix(targetStarRA, targetStarDec, 0)
+
+    # Converts pixel values to integers
+    Y = int(Y)  # was pixRA
+    X = int(X)  # was pixDec
+
     # Check if the file has WCS data
     try:
         hdul[0].header['CRVAL1']
     except KeyError:
-        # If it doesn't, get it
+        # If it doesn't have WCS, add it
         mainFile = getWCS(key, mainFile)
+        if mainFile == 0:
+            return 0
         if calibrationFlag == 1:
             # Calibrate the image
             hdul = calibrate(mainFile, darkFrame, flatField, bias=biasFrame, outputFlag=calibrationOutputFlag,
