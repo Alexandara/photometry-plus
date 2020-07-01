@@ -20,6 +20,7 @@ from astroquery.simbad import Simbad
 from photutils import Background2D
 from photutils import CircularAperture
 from photutils import aperture_photometry
+from photutils import CircularAnnulus
 from scipy.interpolate import make_interp_spline, BSpline
 
 from client import Client
@@ -203,13 +204,13 @@ def findRadius(Y, X, data):
 
     # Take the maximum out of the four found radius
     max = 100
-    if r1 >= r2 and r1 >= r3 and r1 >= r4:
+    if r1 >= r2 and r1 >= r3 and r1 >= r4 and r1 < 50:
         max = r1
-    elif r2 >= r1 and r2 >= r3 and r2 >= r4:
+    elif r2 >= r1 and r2 >= r3 and r2 >= r4 and r2 < 50:
         max = r2
-    elif r3 >= r1 and r3 >= r2 and r3 >= r4:
+    elif r3 >= r1 and r3 >= r2 and r3 >= r4 and r3 < 50:
         max = r3
-    elif r4 >= r1 and r4 >= r2 and r4 >= r3:
+    elif r4 >= r1 and r4 >= r2 and r4 >= r3 and r4 < 50:
         max = r4
 
     return max
@@ -226,7 +227,10 @@ PURPOSE:    Using the radius of the primary target star, this
 def findBlank(data, r):
     # Uses Background2D to find the median blanks over an area the side
     # of the star times four
-    background = Background2D(data, ((r * 4), (r * 4)))
+    try:
+        background = Background2D(data, ((r * 4), (r * 4)))
+    except ValueError:
+        background = findBlankNoRad(data)
     return background.background_median
 
 """
@@ -240,7 +244,7 @@ PARAMETERS: Center of star pixel Y location (Y)
 PURPOSE:    Taking in information about any star, this method counts
             the photons in a circular area around the center of the star.
 """
-def starCount(Y, X, data, r, blank):
+def starCount(Y, X, data, r, blank=0):
     # Creates an aperture centered around the target star of radius r
     if r <= 0:
         r = 20
@@ -252,6 +256,15 @@ def starCount(Y, X, data, r, blank):
 
     # Calculate Error in this count
     error = math.sqrt(targetStarPhotons)
+
+    blank = 0
+    # If blank counts not provided, do per star
+    if blank == 0:
+        blankAperture = CircularAnnulus((X, Y), r_in=r, r_out=r*4)
+        blankTable = aperture_photometry(data, blankAperture)
+        blankPhotons = blankTable['aperture_sum'][0]
+        annulusArea = (math.pi * (r*4) * (r*4)) - (math.pi * r * r)
+        blank = blankPhotons/annulusArea
 
     # Subtracts blank counts per every pixel in the star
     targetStarPhotons = targetStarPhotons - ((math.pi * r * r) * blank)
@@ -302,7 +315,7 @@ def findOtherStars(Y, X, data, rad, blank, w):
                 degreeDec = tempDec2[0] + (tempDec2[1]/60) + (tempDec2[2]/3600)
                 starX, starY = w.all_world2pix(degreeRa, degreeDec, 0)
                 # Calculate counts in the star
-                c, sigmaSrc = starCount(starY, starX, data, rad, blank)
+                c, sigmaSrc = starCount(starY, starX, data, rad, blank=blank)
                 # Addition of this star to the array of stars objects
                 stars.append(Star(name[i], degreeRa, degreeDec, rad, c, mag[i], 0, sigmaSrc))
                 x = x+1
@@ -372,7 +385,7 @@ def readFromFile(fileName, radius, data, blank, w):
             # Pull the star location from file
             X, Y = w.all_world2pix(float(array[1]), float(array[2]), 0)
             # Calculate counts for this image
-            starPhotons, e = starCount(Y, X, data, radius, blank)
+            starPhotons, e = starCount(Y, X, data, radius, blank=blank)
             # Create a star object
             stars.append(Star(array[0], float(array[1]), float(array[2]), radius, starPhotons, float(array[5]), float(array[6]), e))
     return stars
@@ -565,48 +578,55 @@ def getWCS(key, file, checkupFlag=1):
     if checkupFlag == 1:
         print("File Uploaded")
 
-    # Get the job ID for uploaded file
-    # It is compared to the old on to make sure it is the correct job ID
-    jobid = astrometry.myjobs()[0]
-    jCheck = 0
-    while oldJobid == jobid:
-        jCheck = jCheck + 1
-        jobid = astrometry.myjobs()[0]
-        if checkupFlag == 1:
-            if jCheck%10 == 0:
-                print("Preparing job ID for", jCheck, "iterations. Please hold.")
-    if checkupFlag == 1:
-        print("Job ID retreived: ", jobid)
-
-    # Request final product from website
-    joburl = 'http://nova.astrometry.net/new_fits_file/' + str(jobid)
-    if checkupFlag == 1:
-        print("File requested at ", joburl)
-
     # Create new output directory if none exists
     if not os.path.exists("Output"):
         os.mkdir("Output")
     # Create filename to save to
     splitFile = file.split('/')
-    filename = "Output/CORRECTED_" + splitFile[len(splitFile)-1]
+    filename = "Output/CORRECTED_" + splitFile[len(splitFile) - 1]
 
-    # Wait for the file to finish downloading before progessing
-    check = True
-    problem = 112
-    while problem == 112:
-        status = astrometry.job_status(jobid)
-        solve = 0
-        while(status == 'solving'):
-            status = astrometry.job_status(jobid)
+    # Prevent program break from timeout
+    try:
+        # Get the job ID for uploaded file
+        # It is compared to the old on to make sure it is the correct job ID
+        jobid = astrometry.myjobs()[0]
+        jCheck = 0
+        while oldJobid == jobid:
+            jCheck = jCheck + 1
+            jobid = astrometry.myjobs()[0]
             if checkupFlag == 1:
-                solve = solve + 1
-                if solve % 50 == 0:
-                    print("File solving for", solve, "iterations. Please hold.")
-        results = requests.get(joburl, allow_redirects=False)
-        if astrometry.job_status(jobid) == 'failure':
-            return 0
-        problem = results.content[0]
+              if jCheck%10 == 0:
+                   print("Preparing job ID for", jCheck, "iterations. Please hold.")
+        if checkupFlag == 1:
+            print("Job ID retreived: ", jobid)
 
+        # Request final product from website
+        joburl = 'http://nova.astrometry.net/new_fits_file/' + str(jobid)
+        if checkupFlag == 1:
+            print("File requested at ", joburl)
+
+        # Wait for the file to finish downloading before progessing
+        check = True
+        problem = 112
+        while problem == 112:
+            status = astrometry.job_status(jobid)
+            solve = 0
+            while(status == 'solving'):
+                status = astrometry.job_status(jobid)
+                if checkupFlag == 1:
+                    solve = solve + 1
+                    if solve % 50 == 0:
+                        print("File solving for", solve, "iterations. Please hold.")
+            results = requests.get(joburl, allow_redirects=False)
+            if astrometry.job_status(jobid) == 'failure':
+                if checkupFlag == 1:
+                    print("Job failed.")
+                return 0
+            problem = results.content[0]
+    except TimeoutError:
+        if checkupFlag == 1:
+            print("Job failed.")
+        return 0
     #Writing results to file
     file = open(filename, 'wb')
     file.write(results.content)
@@ -733,7 +753,7 @@ def letsGo(targetStarRA, targetStarDec, key,
     blankSkyPhotons = findBlank(hdul[0].data, radius)
 
     # Find the photon counts in the target star
-    targetStarPhotons, targetStarError = starCount(Y, X, hdul[0].data, radius, blankSkyPhotons)
+    targetStarPhotons, targetStarError = starCount(Y, X, hdul[0].data, radius, blank=blankSkyPhotons)
 
     # Find reference stars
     if readFlag == 1:
@@ -790,7 +810,7 @@ def letsGo(targetStarRA, targetStarDec, key,
 
 """
 NAME:       runFiles
-RETURNS:    Array of result objects containing results for photometry on every file
+RETURNS:    Array of photometry objects containing results for photometry on every file
             in the directory
 PARAMETERS: The right ascension of the target star in Decimal Degrees (targetStarRA)
             The declination of the target star in Decimal Degrees (targetStarDec)
