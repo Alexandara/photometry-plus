@@ -1,4 +1,4 @@
-# photometry-plus
+# Photometry+
 Photometry+ is an autonomous photometry program designed for  astronomers to perform fast photometry with as much control  as they desire. This program is specifically tailored to the Great Basin Observatory telescope data, but can be adjusted to be used for other .fits files.
 
 # Motivation
