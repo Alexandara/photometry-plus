@@ -22,6 +22,7 @@ from photutils import CircularAperture
 from photutils import aperture_photometry
 from photutils import CircularAnnulus
 from scipy.interpolate import make_interp_spline, BSpline
+import json
 
 from client import Client
 
@@ -231,6 +232,7 @@ def findBlank(data, r):
         background = Background2D(data, ((r * 4), (r * 4)))
     except ValueError:
         background = findBlankNoRad(data)
+        return background
     return background.background_median
 
 """
@@ -560,80 +562,85 @@ PARAMETERS: API key for user login to astrometry.net (key)
 PURPOSE:    Add WCS header to .fits file without one using astrometry.net
 """
 def getWCS(key, file, checkupFlag=1):
-    # Log in to astrometry.net
-    if checkupFlag == 1:
-        print("Starting getWCS")
-    astrometry = Client()
-    astrometry.login(key)
-    if checkupFlag == 1:
-        print("Logged in")
-
-    #Get previous jobid
-    oldJobid = astrometry.myjobs()[0]
-
-    # Upload file to astrometry.net
-    if checkupFlag == 1:
-        print("Uploading File")
-    response = astrometry.upload(fn=file)
-    if checkupFlag == 1:
-        print("File Uploaded")
-
-    # Create new output directory if none exists
-    if not os.path.exists("Output"):
-        os.mkdir("Output")
-    # Create filename to save to
-    splitFile = file.split('/')
-    filename = "Output/CORRECTED_" + splitFile[len(splitFile) - 1]
-
-    # Prevent program break from timeout
     try:
-        # Get the job ID for uploaded file
-        # It is compared to the old on to make sure it is the correct job ID
-        jobid = astrometry.myjobs()[0]
-        jCheck = 0
-        while oldJobid == jobid:
-            jCheck = jCheck + 1
+        # Log in to astrometry.net
+        if checkupFlag == 1:
+            print("Starting getWCS")
+        astrometry = Client()
+        astrometry.login(key)
+        if checkupFlag == 1:
+            print("Logged in")
+
+        #Get previous jobid
+        oldJobid = astrometry.myjobs()[0]
+
+        # Upload file to astrometry.net
+        if checkupFlag == 1:
+            print("Uploading File")
+        response = astrometry.upload(fn=file)
+        if checkupFlag == 1:
+            print("File Uploaded")
+
+        # Create new output directory if none exists
+        if not os.path.exists("Output"):
+            os.mkdir("Output")
+        # Create filename to save to
+        splitFile = file.split('/')
+        filename = "Output/CORRECTED_" + splitFile[len(splitFile) - 1]
+
+        # Prevent program break from timeout
+        try:
+            # Get the job ID for uploaded file
+            # It is compared to the old on to make sure it is the correct job ID
             jobid = astrometry.myjobs()[0]
+            jCheck = 0
+            while oldJobid == jobid:
+                jCheck = jCheck + 1
+                jobid = astrometry.myjobs()[0]
+                if checkupFlag == 1:
+                  if jCheck%10 == 0:
+                       print("Preparing job ID for", jCheck, "iterations. Please hold.")
             if checkupFlag == 1:
-              if jCheck%10 == 0:
-                   print("Preparing job ID for", jCheck, "iterations. Please hold.")
-        if checkupFlag == 1:
-            print("Job ID retreived: ", jobid)
+                print("Job ID retreived: ", jobid)
 
-        # Request final product from website
-        joburl = 'http://nova.astrometry.net/new_fits_file/' + str(jobid)
-        if checkupFlag == 1:
-            print("File requested at ", joburl)
+            # Request final product from website
+            joburl = 'http://nova.astrometry.net/new_fits_file/' + str(jobid)
+            if checkupFlag == 1:
+                print("File requested at ", joburl)
 
-        # Wait for the file to finish downloading before progessing
-        check = True
-        problem = 112
-        while problem == 112:
-            status = astrometry.job_status(jobid)
-            solve = 0
-            while(status == 'solving'):
+            # Wait for the file to finish downloading before progessing
+            check = True
+            problem = 112
+            while problem == 112:
                 status = astrometry.job_status(jobid)
-                if checkupFlag == 1:
-                    solve = solve + 1
-                    if solve % 50 == 0:
-                        print("File solving for", solve, "iterations. Please hold.")
-            results = requests.get(joburl, allow_redirects=False)
-            if astrometry.job_status(jobid) == 'failure':
-                if checkupFlag == 1:
-                    print("Job failed.")
-                return 0
-            problem = results.content[0]
-    except TimeoutError:
+                solve = 0
+                while(status == 'solving'):
+                    status = astrometry.job_status(jobid)
+                    if checkupFlag == 1:
+                        solve = solve + 1
+                        if solve % 50 == 0:
+                            print("File solving for", solve, "iterations. Please hold.")
+                results = requests.get(joburl, allow_redirects=False)
+                if astrometry.job_status(jobid) == 'failure':
+                    if checkupFlag == 1:
+                        print("Job failed.")
+                    return 0
+                problem = results.content[0]
+        except TimeoutError:
+            if checkupFlag == 1:
+                print("Job timed out.")
+            return 0
+        #Writing results to file
+        file = open(filename, 'wb')
+        file.write(results.content)
+        file.close()
         if checkupFlag == 1:
-            print("Job failed.")
+            print("File written to ", filename)
+        return filename
+    except Exception:
+        if checkupFlag == 1:
+            print("Localization failed.")
         return 0
-    #Writing results to file
-    file = open(filename, 'wb')
-    file.write(results.content)
-    file.close()
-    if checkupFlag == 1:
-        print("File written to ", filename)
-    return filename
 
 """
 NAME:       letsGo
@@ -748,7 +755,6 @@ def letsGo(targetStarRA, targetStarDec, key,
         # Set the radius to the distance from the center
         # of the star to the farthest edge of the star
         radius = findRadius(Y, X, hdul[0].data)
-
     # Find the photon counts per pixel of blank sky
     blankSkyPhotons = findBlank(hdul[0].data, radius)
 
@@ -768,6 +774,7 @@ def letsGo(targetStarRA, targetStarDec, key,
     sigmaBkg = math.sqrt(a * blankSkyPhotons)
     ave, error, stars = calculateMagnitudeAndError(targetStarPhotons, stars, targetStarError, sigmaBkg)
     if ave == 0 and error == 0:
+        print("Problem with first calculation.")
         return 0
 
     # Remove outliers
@@ -793,6 +800,7 @@ def letsGo(targetStarRA, targetStarDec, key,
         # Recalculate average magnitude and standard deviation without outliers
         ave, error, stars = calculateMagnitudeAndError(targetStarPhotons, stars, targetStarError, sigmaBkg)
         if ave == 0 and error == 0:
+            print("Problem with second calculation.")
             return 0
 
     # Console output

@@ -8,7 +8,7 @@ This project was created to speed up the lengthy process that is photometry. Doi
 Build successful
 
 # Tech used
- - astropy
+ - astropy [![astropy](http://img.shields.io/badge/powered%20by-AstroPy-orange.svg?style=flat)](http://www.astropy.org/)
  - photutils
  - astroquery 
  - SIMBAD
