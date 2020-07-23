@@ -1,4 +1,4 @@
-# Photometry+ by Alexis Tudor
+# Photometry+ by Alexis Tudor 
 Photometry+ is an autonomous photometry program designed for  astronomers to perform fast photometry with as much control  as they desire. This program is specifically tailored to the Great Basin Observatory telescope data, but can be adjusted to be used for other .fits files.
 
 # Motivation
@@ -61,7 +61,7 @@ If there is no place to cite the papers, please use this acknowledgement:
      This research made use of Photometry+ at https://github.com/Alexandara/photometry-plus.
      
 In Projects:
-If you are using Photometry+ as part of a code project (e.g., affiliated packages), a useful way to acknowledge your use of Photometry+ is in your README.
+If you are using Photometry+ as part of a code project (e.g., affiliated packages), a useful way to acknowledge your use of Photometry+ is in your README. Use this badge: [![Generic badge](https://img.shields.io/badge/<powered by>-<Photometry+>-<COLOR>.svg)](https://shields.io/)
 
 In Presentations:
 When using Photometry+ in a presentation, please include the Photometry+ logo in your presentation.
@@ -71,6 +71,7 @@ This project was inspired by using the Great Basin Observatory telescope in the 
 
 # License 
 GNU @ Alexis Tudor
+[![Open Source Love svg2](https://badges.frapsoft.com/os/v2/open-source.svg?v=103)](https://github.com/ellerbrock/open-source-badges/)
 
 
 
