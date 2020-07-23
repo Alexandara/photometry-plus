@@ -61,7 +61,7 @@ If there is no place to cite the papers, please use this acknowledgement:
      This research made use of Photometry+ at https://github.com/Alexandara/photometry-plus.
      
 In Projects:
-If you are using Photometry+ as part of a code project (e.g., affiliated packages), a useful way to acknowledge your use of Photometry+ is in your README. Use this badge: [![Generic badge](https://img.shields.io/badge/<powered by>-<Photometry+>-<COLOR>.svg)](https://shields.io/)
+If you are using Photometry+ as part of a code project (e.g., affiliated packages), a useful way to acknowledge your use of Photometry+ is in your README. Use this badge: [![Generic badge](https://img.shields.io/badge/powered%20by-Photometry+-blue.svg)](https://github.com/Alexandara/photometry-plus)
 
 In Presentations:
 When using Photometry+ in a presentation, please include the Photometry+ logo in your presentation.
