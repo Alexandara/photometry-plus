@@ -69,7 +69,8 @@ If you are using Photometry+ as part of a code project (e.g., affiliated package
 
 **In Presentations:**
 
-When using Photometry+ in a presentation, please include the Photometry+ logo in your presentation.
+When using Photometry+ in a presentation, please include the Photometry+ logo in your presentation:
+![Photometry+ Logo (2)](https://user-images.githubusercontent.com/6069321/86058691-23bf2e00-ba16-11ea-8f97-5ef990d68a4c.png)
 
 # Credit 
 This project was inspired by using the Great Basin Observatory telescope in the Great Basin National Park. Great thanks to the astropy library. This project uses a modified version of the astrometry.net client.py file.
