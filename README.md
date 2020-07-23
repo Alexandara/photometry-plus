@@ -55,10 +55,12 @@ Feel free to download this project and change it to suit your needs. Credit Phot
 # How to Cite Photometry+
 In Publications:
 If you use Photometry+ for work/research presented in a publication (whether directly, or as a dependency to another package), we ask that you please use the following citation:
-     - Tudor, A. 2020, Photometry+, v0.3-beta, Github at https://github.com/Alexandara/photometry-plus
+     
+- Tudor, A. 2020, Photometry+, v0.3-beta, Github at https://github.com/Alexandara/photometry-plus
 
 If there is no place to cite the papers, please use this acknowledgement:
-     This research made use of Photometry+ at https://github.com/Alexandara/photometry-plus.
+
+This research made use of Photometry+ at https://github.com/Alexandara/photometry-plus.
      
 In Projects:
 If you are using Photometry+ as part of a code project (e.g., affiliated packages), a useful way to acknowledge your use of Photometry+ is in your README. Use this badge: [![Generic badge](https://img.shields.io/badge/powered%20by-Photometry+-blue.svg)](https://github.com/Alexandara/photometry-plus)
