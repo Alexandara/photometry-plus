@@ -17,6 +17,7 @@ from astropy import wcs
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astroquery.simbad import Simbad
+from astroquery.vizier import Vizier
 from photutils import Background2D
 from photutils import CircularAperture
 from photutils import aperture_photometry
@@ -289,6 +290,31 @@ def starCount(Y, X, data, r, blank=0):
     return targetStarPhotons, error
 
 """
+NAME:       formatFilter
+RETURNS:    The filter format for Vizier, Simbad add Votable, and Simbad
+PARAMETERS: The filter the image uses (filter)
+                NOTE: Supported filters are V, B, g', r', and i'
+                All others must be formatted by the user
+PURPOSE:    This method locates stars nearby the target stars
+            and then calls a helper method to construct a star
+            object for the located stars.
+"""
+def formatFilter(filter):
+    if filter == "V" or filter == "v":
+        return 'Vmag', 'flux(V)', 'FLUX_V'
+    elif filter == "B":
+        return 'Bmag', 'flux(B)', 'FLUX_B'
+    elif filter == "g":
+        return 'g_mag', 'flux(g)', 'FLUX_g'
+    elif filter == "r":
+        return 'r_mag', 'flux(r)', 'FLUX_r'
+    elif filter == "i":
+        return 'i_mag', 'flux(i)', 'FLUX_i'
+    else:
+        return filter, "flux(V)", 0
+
+
+"""
 NAME:       findOtherStars
 RETURNS:    Array of other star objects
 PARAMETERS: Center of target star RA (Y)
@@ -302,42 +328,66 @@ PURPOSE:    This method locates stars nearby the target stars
             and then calls a helper method to construct a star
             object for the located stars.
 """
-def findOtherStars(Y, X, data, rad, blank, w):
+def findOtherStars(Y, X, data, rad, blank, w, catalog="II/336/apass9", filter="V"):
+    fCat, fVot, fSim = formatFilter(filter)
+    sbad = 1
     stars = []
-    skyC = SkyCoord.from_pixel(X, Y, w)
-    # Query all stars in the image
+    # Initialize SIMBAD
     customSimbad = Simbad()
-    # Sets the flux being looked for to V magnitudes
-    customSimbad.add_votable_fields('flux(V)')
-    # Query in an area about the size of the image from GBO
-    result = customSimbad.query_region(skyC, radius='0d10m0s')  # This line creates warnings
-    # If there are any results:
+    customSimbad.add_votable_fields(fVot)
+
+    # Get sky coordinate object
+    skyC = SkyCoord.from_pixel(X, Y, w)
+
+    # Query all stars in the image
+    result = Vizier.query_region(skyC, radius='0d10m0s', catalog=catalog)
+
+    # Check if there are results
     if not (result is None):
-        name = result['MAIN_ID']
-        ra = result['RA']
-        dec = result['DEC']
-        mag = result['FLUX_V']
-        x = 0
+        name = result[0]['recno']
+        ra = result[0]['RAJ2000']
+        dec = result[0]['DEJ2000']
+        mag = result[0][fCat]
+        # Create star objects from the found reference stars
         for i in range(1, len(mag)):
             # This line checks for a non-null magnitude value
             if type(mag[i]) is np.float32:
-                tempRa = (str(ra[i])).split()
-                tempDec = (str(dec[i])).split()
-                tempRa2 = []
-                tempDec2 = []
-                for j in range(len(tempRa)):
-                    tempRa2.append(float(tempRa[j]))
-                    tempDec2.append(float(tempDec[j]))
-                # Conversion into decimal degrees
-                degreeRa = (tempRa2[0]*15) + ((tempRa2[1]/60)*15) + ((tempRa2[2]/3600)*15)
-                degreeDec = tempDec2[0] + (tempDec2[1]/60) + (tempDec2[2]/3600)
-                starX, starY = w.all_world2pix(degreeRa, degreeDec, 0)
+                starX, starY = w.all_world2pix(ra[i], dec[i], 0)
                 # Calculate counts in the star
                 c, sigmaSrc = starCount(starY, starX, data, rad, blank=blank)
                 # Addition of this star to the array of stars objects
-                stars.append(Star(name[i], degreeRa, degreeDec, rad, c, mag[i], 0, sigmaSrc))
-                x = x+1
+                stars.append(Star("Ref"+str(i), ra[i], dec[i], rad, c, mag[i], 0, sigmaSrc))
     else:
+        sbad = 1
+    if sbad == 1 and not(fSim == 0):
+        # Query all stars in the image
+        # Query in an area about the size of the image from GBO
+        result = customSimbad.query_region(skyC, radius='0d10m0s')  # This line creates warnings
+        # If there are any results:
+        if not (result is None):
+            name = result['MAIN_ID']
+            ra = result['RA']
+            dec = result['DEC']
+            mag = result[fSim]
+            for i in range(1, len(mag)):
+                # This line checks for a non-null magnitude value
+                if type(mag[i]) is np.float32:
+                    tempRa = (str(ra[i])).split()
+                    tempDec = (str(dec[i])).split()
+                    tempRa2 = []
+                    tempDec2 = []
+                    for j in range(len(tempRa)):
+                        tempRa2.append(float(tempRa[j]))
+                        tempDec2.append(float(tempDec[j]))
+                    # Conversion into decimal degrees
+                    degreeRa = (tempRa2[0]*15) + ((tempRa2[1]/60)*15) + ((tempRa2[2]/3600)*15)
+                    degreeDec = tempDec2[0] + (tempDec2[1]/60) + (tempDec2[2]/3600)
+                    starX, starY = w.all_world2pix(degreeRa, degreeDec, 0)
+                    # Calculate counts in the star
+                    c, sigmaSrc = starCount(starY, starX, data, rad, blank=blank)
+                    # Addition of this star to the array of stars objects
+                    stars.append(Star("Ref"+str(i), degreeRa, degreeDec, rad, c, mag[i], 0, sigmaSrc))
+    elif sbad == 1 and len(stars) == 0 and not(fSim == 0):
         return 0
     return stars
 
@@ -371,7 +421,7 @@ def printReferenceToFile(stars, filename="stars.csv"):
     filename = "Output/" + filename
     file = open(filename, "w")
     # Create the heading
-    file.write("Name,Right Ascension (Decimal Degrees),Declination (Decimal Degrees),Radius (pixels),Photons,Magnitude,Calculated Target Magnitude,Error,\n")
+    file.write("ID,Right Ascension (Decimal Degrees),Declination (Decimal Degrees),Radius (pixels),Photons,Magnitude,Calculated Target Magnitude,Error,\n")
     # For each reference star, print all categories
     for i in range(len(stars)):
         trRA = truncate(stars[i].ra, 6)
@@ -403,7 +453,7 @@ def readFromFile(fileName, radius, data, w, blank=0):
     stars = []
     for line in file:
         array = line.split(",")
-        if not(array[0] == 'Name') and not(array[0] == '\n') and not(array[0] == ''):
+        if not(array[0] == 'Name') and not(array[0] == '\n') and not(array[0] == '') and not(array[0] == 'ID'):
             # Pull the star location from file
             X, Y = w.all_world2pix(float(array[1]), float(array[2]), 0)
             # Calculate counts for this image
@@ -685,89 +735,88 @@ PARAMETERS: API key for user login to astrometry.net (key)
                 Set to 0 for no print statements, set to 1 for printed updates
 PURPOSE:    Add WCS header to .fits file without one using astrometry.net
 """
-def getWCS(key, file, checkupFlag=1):
+def getWCS(key, file, ra=0, dec=0, checkupFlag=1):
+    # Log in to astrometry.net
+    if checkupFlag == 1:
+        print("Starting getWCS")
+    astrometry = Client()
+    astrometry.login(key)
+    if checkupFlag == 1:
+        print("Logged in")
+
+    #Get previous jobid
     try:
-        # Log in to astrometry.net
-        if checkupFlag == 1:
-            print("Starting getWCS")
-        astrometry = Client()
-        astrometry.login(key)
-        if checkupFlag == 1:
-            print("Logged in")
+        oldJobid = astrometry.myjobs()[0]
+    except IndexError:
+        oldJobid = 0
 
-        #Get previous jobid
-        try:
-            oldJobid = astrometry.myjobs()[0]
-        except IndexError:
-            oldJobid = 0
-
-        # Upload file to astrometry.net
-        if checkupFlag == 1:
-            print("Uploading File")
+    # Upload file to astrometry.net
+    if checkupFlag == 1:
+        print("Uploading File")
+    if ra == 0 or dec == 0:
         response = astrometry.upload(fn=file)
-        if checkupFlag == 1:
-            print("File Uploaded")
+    else:
+        response = astrometry.upload(fn=file, center_ra=ra, center_dec=dec, radius=1)
+    if checkupFlag == 1:
+        print("File Uploaded")
 
-        # Create new output directory if none exists
-        if not os.path.exists("Output"):
-            os.mkdir("Output")
-        # Create filename to save to
-        splitFile = file.split('/')
-        filename = "Output/CORRECTED_" + splitFile[len(splitFile) - 1]
+    # Create new output directory if none exists
+    if not os.path.exists("Output"):
+        os.mkdir("Output")
+    # Create filename to save to
+    splitFile = file.split('/')
+    filename = "Output/CORRECTED_" + splitFile[len(splitFile) - 1]
 
-        # Prevent program break from timeout
-        try:
-            # Get the job ID for uploaded file
-            # It is compared to the old on to make sure it is the correct job ID
+    # Prevent program break from timeout
+    try:
+        # Get the job ID for uploaded file
+        # It is compared to the old on to make sure it is the correct job ID
+        jobid = astrometry.myjobs()[0]
+        jCheck = 0
+        while oldJobid == jobid:
+            jCheck = jCheck + 1
             jobid = astrometry.myjobs()[0]
-            jCheck = 0
-            while oldJobid == jobid:
-                jCheck = jCheck + 1
-                jobid = astrometry.myjobs()[0]
-                if checkupFlag == 1:
-                  if jCheck%10 == 0:
-                       print("Preparing job ID for", jCheck, "iterations. Please hold.")
             if checkupFlag == 1:
-                print("Job ID retreived: ", jobid)
+              if jCheck%10 == 0:
+                   print("Preparing job ID for", jCheck, "iterations. Please hold.")
+        if checkupFlag == 1:
+            print("Job ID retreived: ", jobid)
 
-            # Request final product from website
-            joburl = 'http://nova.astrometry.net/new_fits_file/' + str(jobid)
-            if checkupFlag == 1:
-                print("File requested at ", joburl)
+        # Request final product from website
+        joburl = 'http://nova.astrometry.net/new_fits_file/' + str(jobid)
+        if checkupFlag == 1:
+            print("File requested at ", joburl)
 
-            # Wait for the file to finish downloading before progessing
-            check = True
-            problem = 112
-            while problem == 112:
+        # Wait for the file to finish downloading before progessing
+        check = True
+        problem = 112
+        while problem == 112:
+            status = astrometry.job_status(jobid)
+            solve = 0
+            while(status == 'solving'):
                 status = astrometry.job_status(jobid)
-                solve = 0
-                while(status == 'solving'):
-                    status = astrometry.job_status(jobid)
-                    if checkupFlag == 1:
-                        solve = solve + 1
-                        if solve % 50 == 0:
-                            print("File solving for", solve, "iterations. Please hold.")
-                results = requests.get(joburl, allow_redirects=False)
-                if astrometry.job_status(jobid) == 'failure':
-                    if checkupFlag == 1:
-                        print("Job failed.")
-                    return 0
-                problem = results.content[0]
-        except TimeoutError:
-            if checkupFlag == 1:
-                print("Job timed out.")
-            return 0
-        #Writing results to file
-        file = open(filename, 'wb')
-        file.write(results.content)
-        file.close()
+                if checkupFlag == 1:
+                    solve = solve + 1
+                    if solve % 50 == 0:
+                        print("File solving for", solve, "iterations. Please hold.")
+            results = requests.get(joburl, allow_redirects=False)
+            if astrometry.job_status(jobid) == 'failure':
+                if checkupFlag == 1:
+                    print("Job failed.")
+                return 0
+            problem = results.content[0]
+    except TimeoutError:
         if checkupFlag == 1:
-            print("File written to ", filename)
-        return filename
-    except Exception:
-        if checkupFlag == 1:
-            print("Localization failed.")
+            print("Job timed out.")
         return 0
+    #Writing results to file
+    file = open(filename, 'wb')
+    file.write(results.content)
+    file.close()
+    if checkupFlag == 1:
+        print("File written to ", filename)
+    return filename
+    return 0
 
 """
 NAME:       letsGo
@@ -848,7 +897,7 @@ def letsGo(targetStarRA, targetStarDec, key,
         hdul[0].header['CRVAL1']
     except KeyError:
         # If it doesn't have WCS, add it
-        mainFile = getWCS(key, mainFile)
+        mainFile = getWCS(key, mainFile, ra=targetStarRA, dec=targetStarDec)
         if mainFile == 0:
             return 0
         if calibrationFlag == 1:
