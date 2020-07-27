@@ -59,22 +59,129 @@ class Photometry:
         self.error = error
         self.referenceStars = referenceStars
 
+class Settings:
+    def __init__(self):
+        # biasFlag:
+        # 0 = not using bias files for calculations
+        # directory name = using bias files
+        self.biasFlag = 0
+
+        # calibrationOutputFlag:
+        # 0 = not outputting calibrated files
+        # 1 = output calibrated files
+        self.calibrationOutputFlag = 0
+
+        # calibrationFlag:
+        # 0 = not performing calibration in main methods
+        # 1 = performing calibration in main methods
+        self.calibrationFlag = 1
+
+        # blankPerStarFlag:
+        # 0 = calculate blank sky counts for the entire image
+        # 1 = calculate blank sky counts for each star
+        self.blankPerStarFlag = 0
+
+        # catalogChoice:
+        # II/336/apass9 = use APASS catalog
+        # Vizier catalog designation = use user-chosen catalog
+        # 0 = use SIMBAD
+        #   WARNING: Using SIMBAD may result in errors being introduced into the calculation
+        #   as different sources are used for magnitudes in SIMBAD
+        self.catalogChoice = "II/336/apass9"
+
+        # filterChoice:
+        # V = Johnson V filter
+        # B = Johnson B filter
+        # g = g' filter
+        # r = r' filter
+        # i = i' filter
+        # Other filter = user-chosen filter
+        #   WARNING: using a non-supported filter requires that the user sets this flag
+        #   to the correct formatting for accessing that filter in the catalog of their
+        #   choice
+        self.filterChoice = "V"
+
+        # lightCurveLineFlag:
+        # 0 = generate light curve plots without lines (traditional)
+        # 1 = generate light curve plots with smooth lines
+        self.lightCurveLineFlag = 0
+
+        # showLightCurveFlag:
+        # 0 = do not print light curve plots to the screen
+        # 1 = print light curve plots to the screen
+        self.showLightCurveFlag = 0
+
+        # errorChoice:
+        # STD = use standard deviation method for error management
+        # JKF = use jack knife method for error management
+        # WMG = use weighted magnitude for error management
+        # 0 = do not calculate error
+        self.errorChoice = "STD"
+
+        # consolePrintFlag:
+        # 0 = do not print to console
+        # 1 = print updates to console
+        #   WARNING: printing to console may slightly slow down the program
+        self.consolePrintFlag = 1
+
+        # readInReferenceFlag:
+        # 0 = do not read in reference stars from file
+        # file name = use this reference file
+        # directory name = detect reference file in directory
+        self.readInReferenceFlag = 0
+
+        # fwhmFlag:
+        # 0 = detect radius for stars manually
+        # 1 = use Full-Width Half-Maximum if available as radius for apertures
+        self.fwhmFlag = 1
+
+        # printReferenceStarsFlag:
+        # 0 = do not print reference stars out
+        # 1 = print out reference stars used
+        self.printReferenceStarsFlag = 0
+
+        # astrometryDotNetFlag:
+        # 0 = do not use astrometry.net
+        # astrometry.net API key = use astrometry.net with this API key
+        self.astrometryDotNetFlag = 0
+
+
+settings = Settings()
+
+def changeSettings(biasFlag=settings.biasFlag, calibrationOutputFlag=settings.calibrationOutputFlag,
+                   calibrationFlag=settings.calibrationFlag, blankPerStarFlag=settings.blankPerStarFlag,
+                   catalogChoice=settings.catalogChoice, filterChoice=settings.filterChoice,
+                   lightCurveLineFlag=settings.lightCurveLineFlag, showLightCurveFlag=settings.showLightCurveFlag,
+                   errorChoice=settings.errorChoice, consolePrintFlag=settings.consolePrintFlag,
+                   readInReferenceFlag=settings.readInReferenceFlag, fwhmFlag=settings.fwhmFlag,
+                   printReferenceStarsFlag=settings.printReferenceStarsFlag, astrometryDotNetFlag=settings.astrometryDotNetFlag):
+    global settings
+    settings.biasFlag = biasFlag
+    settings.calibrationOutputFlag = calibrationOutputFlag
+    settings.calibrationFlag = calibrationFlag
+    settings.blankPerStarFlag = blankPerStarFlag
+    settings.catalogChoice = catalogChoice
+    settings.filterChoice = filterChoice
+    settings.lightCurveLineFlag = lightCurveLineFlag
+    settings.showLightCurveFlag = showLightCurveFlag
+    settings.errorChoice = errorChoice
+    settings.consolePrintFlag = consolePrintFlag
+    settings.readInReferenceFlag = readInReferenceFlag
+    settings.fwhmFlag = fwhmFlag
+    settings.printReferenceStarsFlag = printReferenceStarsFlag
+    settings.astrometryDotNetFlag = astrometryDotNetFlag
+
 """
 NAME:       calibrate
 RETURNS:    calibrated data
 PARAMETERS: the file to be calibrated (filename)
             the dark frame (dark)
             the flat frame (flat)
-            the bias frame (bias)
-                NOTE: If bias not provided, the bias is not used
-            outputFlag:
-                set to 0 to not output, set to 1 to output calibrated file
-            calibrationFile:
-                if outputFlag is 1, this is the file name that will be outputted
 PURPOSE:    To calibrate raw .fits files into a form that can 
             be used to calculate accurate magnitude data. 
 """
-def calibrate(filename, dark, flat, bias=0, outputFlag=0, calibrationFile="output.fits"):
+def calibrate(filename, dark, flat):
+    global settings
     # Open the files
     try:
         hdul = fits.open(filename)  # hdul is the computer version of
@@ -96,7 +203,9 @@ def calibrate(filename, dark, flat, bias=0, outputFlag=0, calibrationFile="outpu
     data = data - dataDark #Subtract the dark frame from the data
 
     #Bias calculations if bias is specified
-    if not(bias == 0):
+    if not(settings.biasFlag == 0):
+        biasArray = getFiles(settings.biasFlag)
+        bias = matchCal(filename, biasArray)
         hdulBias = fits.open(bias)
         dataBias = hdulBias[0].data
         data = data - dataBias
@@ -105,12 +214,12 @@ def calibrate(filename, dark, flat, bias=0, outputFlag=0, calibrationFile="outpu
     data = data // dataFlatNorm #Divide out the normalized flat frame data
     hdul[0].data = data #This sets the calibrated data to be a part of the
                         #hdul object
-    
+
     # If outputting calibrated file, create folder and file
-    if outputFlag == 1:
+    if settings.calibrationOutputFlag == 1:
         if not os.path.exists("Output"):
             os.mkdir("Output")
-        calibrationFile = "Output/" + calibrationFile
+        calibrationFile = "Output/CALIBRATED_" + filename
         hdul.writeto(calibrationFile, overwrite=True)
     return hdul
 
@@ -258,27 +367,22 @@ PARAMETERS: Center of star pixel Y location (Y)
             Center of star pixel X location (X)
             Image data (data)
             Radius of the star (r)
-            Average count per blank sky pixel (blank)
-                NOTE: If blank is not included, blank will be
-                calculated on a per-star basis
 PURPOSE:    Taking in information about any star, this method counts
             the photons in a circular area around the center of the star.
 """
-def starCount(Y, X, data, r, blank=0):
+def starCount(Y, X, data, r, blank):
+    global settings
     # Creates an aperture centered around the target star of radius r
     if r <= 0:
         r = 20
     targetAperture = CircularAperture((X, Y), r=r)
     targetStarTable = aperture_photometry(data, targetAperture)
-
     # Counts the sum in that aperture
     targetStarPhotons = targetStarTable['aperture_sum'][0]
-
     # Calculate Error in this count
     error = math.sqrt(targetStarPhotons)
-
-    # If blank counts not provided, do per star
-    if blank == 0:
+    # If set to calculate per star
+    if settings.blankPerStarFlag == 1:
         blankAperture = CircularAnnulus((X, Y), r_in=r, r_out=r*4)
         blankTable = aperture_photometry(data, blankAperture)
         blankPhotons = blankTable['aperture_sum'][0]
@@ -292,27 +396,25 @@ def starCount(Y, X, data, r, blank=0):
 """
 NAME:       formatFilter
 RETURNS:    The filter format for Vizier, Simbad add Votable, and Simbad
-PARAMETERS: The filter the image uses (filter)
-                NOTE: Supported filters are V, B, g', r', and i'
-                All others must be formatted by the user
+PARAMETERS: None
 PURPOSE:    This method locates stars nearby the target stars
             and then calls a helper method to construct a star
             object for the located stars.
 """
-def formatFilter(filter):
-    if filter == "V" or filter == "v":
+def formatFilter():
+    global settings
+    if settings.filterChoice == "V" or settings.filterChoice == "v":
         return 'Vmag', 'flux(V)', 'FLUX_V'
-    elif filter == "B":
+    elif settings.filterChoice == "B":
         return 'Bmag', 'flux(B)', 'FLUX_B'
-    elif filter == "g":
+    elif settings.filterChoice == "g":
         return 'g_mag', 'flux(g)', 'FLUX_g'
-    elif filter == "r":
+    elif settings.filterChoice == "r":
         return 'r_mag', 'flux(r)', 'FLUX_r'
-    elif filter == "i":
+    elif settings.filterChoice == "i":
         return 'i_mag', 'flux(i)', 'FLUX_i'
     else:
-        return filter, "flux(V)", 0
-
+        return settings.filterChoice, "flux(V)", 0
 
 """
 NAME:       findOtherStars
@@ -321,17 +423,19 @@ PARAMETERS: Center of target star RA (Y)
             Center of target star DEC (X)
             Image data (data)
             Radius to examine (rad)
-            Counts in blank sky (blank)
             Parameters for conversion from world coordinates to
             pixel location (w)
 PURPOSE:    This method locates stars nearby the target stars
             and then calls a helper method to construct a star
             object for the located stars.
 """
-def findOtherStars(Y, X, data, rad, blank, w, catalog="II/336/apass9", filter="V"):
-    fCat, fVot, fSim = formatFilter(filter)
-    sbad = 1
+def findOtherStars(Y, X, data, rad, w, blank):
+    global settings
+    fCat, fVot, fSim = formatFilter()
+    sbad = 0
     stars = []
+    if settings.consolePrintFlag == 1:
+        print("Starting findOtherStars")
     # Initialize SIMBAD
     customSimbad = Simbad()
     customSimbad.add_votable_fields(fVot)
@@ -339,33 +443,44 @@ def findOtherStars(Y, X, data, rad, blank, w, catalog="II/336/apass9", filter="V
     # Get sky coordinate object
     skyC = SkyCoord.from_pixel(X, Y, w)
 
-    # Query all stars in the image
-    result = Vizier.query_region(skyC, radius='0d10m0s', catalog=catalog)
-
-    # Check if there are results
-    if not (result is None):
-        name = result[0]['recno']
-        ra = result[0]['RAJ2000']
-        dec = result[0]['DEJ2000']
-        mag = result[0][fCat]
-        # Create star objects from the found reference stars
-        for i in range(1, len(mag)):
-            # This line checks for a non-null magnitude value
-            if type(mag[i]) is np.float32:
-                starX, starY = w.all_world2pix(ra[i], dec[i], 0)
-                # Calculate counts in the star
-                c, sigmaSrc = starCount(starY, starX, data, rad, blank=blank)
-                # Addition of this star to the array of stars objects
-                stars.append(Star("Ref"+str(i), ra[i], dec[i], rad, c, mag[i], 0, sigmaSrc))
+    if not(settings.catalogChoice == 0):
+        if settings.consolePrintFlag == 1:
+            print("Querying Vizier Catalog: ", settings.catalogChoice)
+        # Query all stars in the image
+        result = Vizier.query_region(skyC, radius='0d10m0s', catalog=settings.catalogChoice)
+        # Check if there are results
+        if not (result is None):
+            if settings.consolePrintFlag == 1:
+                print("Reformatting Vizier Data")
+            ra = result[0]['RAJ2000']
+            dec = result[0]['DEJ2000']
+            mag = result[0][fCat]
+            # Create star objects from the found reference stars
+            for i in range(1, len(mag)):
+                # This line checks for a non-null magnitude value
+                if type(mag[i]) is np.float32:
+                    starX, starY = w.all_world2pix(ra[i], dec[i], 0)
+                    # Calculate counts in the star
+                    c, sigmaSrc = starCount(starY, starX, data, rad, blank)
+                    # Addition of this star to the array of stars objects
+                    stars.append(Star("Ref"+str(i), ra[i], dec[i], rad, c, mag[i], 0, sigmaSrc))
+        else:
+            if settings.consolePrintFlag == 1:
+                print("WARNING: Using SIMBAD may introduce error into the calculations due to discrepancies in where magnitudes were obtained.")
+            sbad = 1
     else:
+        if settings.consolePrintFlag == 1:
+            print("Catalog has no valid entries. Switching to SIMBAD.")
+            print("WARNING: Using SIMBAD may introduce error into the calculations due to discrepancies in where magnitudes were obtained.")
         sbad = 1
     if sbad == 1 and not(fSim == 0):
+        if settings.consolePrintFlag == 1:
+            print("Querying SIMBAD")
         # Query all stars in the image
         # Query in an area about the size of the image from GBO
         result = customSimbad.query_region(skyC, radius='0d10m0s')  # This line creates warnings
         # If there are any results:
         if not (result is None):
-            name = result['MAIN_ID']
             ra = result['RA']
             dec = result['DEC']
             mag = result[fSim]
@@ -384,10 +499,12 @@ def findOtherStars(Y, X, data, rad, blank, w, catalog="II/336/apass9", filter="V
                     degreeDec = tempDec2[0] + (tempDec2[1]/60) + (tempDec2[2]/3600)
                     starX, starY = w.all_world2pix(degreeRa, degreeDec, 0)
                     # Calculate counts in the star
-                    c, sigmaSrc = starCount(starY, starX, data, rad, blank=blank)
+                    c, sigmaSrc = starCount(starY, starX, data, rad, blank)
                     # Addition of this star to the array of stars objects
                     stars.append(Star("Ref"+str(i), degreeRa, degreeDec, rad, c, mag[i], 0, sigmaSrc))
     elif sbad == 1 and len(stars) == 0 and not(fSim == 0):
+        if settings.consolePrintFlag == 1:
+            print("No reference stars found.")
         return 0
     return stars
 
@@ -442,13 +559,10 @@ PARAMETERS: The name of the file to read from (fileName)
             The radius to use in calculating star counts (radius)
             Image array of the star (data)
             World coordinate system translation constant (w)
-            Average blank counts in sky (blank)
-                NOTE: If blanks not included, blank will be 
-                calculated on per-star basis
 PURPOSE:    This method reads in data on stars from a
             file to use to calculate the magnitude.
 """
-def readFromFile(fileName, radius, data, w, blank=0):
+def readFromFile(fileName, radius, data, w, blank):
     file = open(fileName, "r")
     stars = []
     for line in file:
@@ -457,7 +571,7 @@ def readFromFile(fileName, radius, data, w, blank=0):
             # Pull the star location from file
             X, Y = w.all_world2pix(float(array[1]), float(array[2]), 0)
             # Calculate counts for this image
-            starPhotons, e = starCount(Y, X, data, radius, blank=blank)
+            starPhotons, e = starCount(Y, X, data, radius, blank)
             # Create a star object
             stars.append(Star(array[0], float(array[1]), float(array[2]), radius, starPhotons, float(array[5]), float(array[6]), e))
     return stars
@@ -520,15 +634,10 @@ RETURNS:    nothing
 PARAMETERS: An input filename for results file (filename)
             An output chartname (chartname)
             An output chart title (chartTitle)
-            lineFlag:
-                Set to 1 to plot a smooth line 
-                over the points
-            showFlag:
-                Set to 1 to display light curve to
-                computer screen, 0 to only save
 PURPOSE:    Creates a light curve with error bars
 """
-def plotResultsFile(filename, chartname="chart.pdf", chartTitle="Light Curve", lineFlag=0, showFlag=1):
+def plotResultsFile(filename, chartname="chart.pdf", chartTitle="Light Curve"):
+    global settings
     # Create new output directory if none exists
     if not os.path.exists("Output"):
         os.mkdir("Output")
@@ -544,7 +653,7 @@ def plotResultsFile(filename, chartname="chart.pdf", chartTitle="Light Curve", l
             mag.append(float(array[2]))
             err.append(float(array[3]))
     # Smooth line print
-    if lineFlag == 1:
+    if settings.lightCurveLineFlag == 1:
         xnew = np.linspace(min(jd), max(jd), 300)
         spl = make_interp_spline(jd, mag, k=3)  # type: BSpline
         power_smooth = spl(xnew)
@@ -561,7 +670,7 @@ def plotResultsFile(filename, chartname="chart.pdf", chartTitle="Light Curve", l
     plt.gca().invert_yaxis()
     chartname = "Output/" + chartname
     plt.savefig(chartname)  # to save to file
-    if showFlag == 1:
+    if settings.showLightCurveFlag == 1:
         plt.show()  # to print to screen
     plt.clf()
 
@@ -571,14 +680,10 @@ RETURNS:    nothing
 PARAMETERS: An array of Photometry objects (ans)
             An output chartname (chartname)
             An output chart title (chartTitle)
-            lineFlag:
-                Set to 1 to plot a smooth line 
-                over the points
-            showFlag
-                Set to 1 to show light curve on screen
 PURPOSE:    Creates a light curve with error bars
 """
-def plotResults(ans, chartname="chart.pdf", chartTitle="Light Curve", lineFlag=0, showFlag=1):
+def plotResults(ans, chartname="chart.pdf", chartTitle="Light Curve"):
+    global settings
     # Create new output directory if none exists
     if not os.path.exists("Output"):
         os.mkdir("Output")
@@ -591,7 +696,7 @@ def plotResults(ans, chartname="chart.pdf", chartTitle="Light Curve", lineFlag=0
         mag.append(ans[i].magnitude)
         err.append(ans[i].error)
     # Smooth line print
-    if lineFlag == 1:
+    if settings.lightCurveLineFlag == 1:
         xnew = np.linspace(min(jd), max(jd), 300)
         spl = make_interp_spline(jd, mag, k=3)  # type: BSpline
         power_smooth = spl(xnew)
@@ -608,7 +713,7 @@ def plotResults(ans, chartname="chart.pdf", chartTitle="Light Curve", lineFlag=0
     plt.gca().invert_yaxis()
     chartname = "Output/" + chartname
     plt.savefig(chartname)  # to save to file
-    if showFlag == 1:
+    if settings.showLightCurveFlag == 1:
         plt.show()  # to print to screen
     plt.clf()
 
@@ -620,18 +725,11 @@ PARAMETERS: A number values representing the counts in the target star (targetSt
             An array of Star objects representing reference stars (stars)
             A number representing the error in the target star counts (targetStarError)
             The error in the background pixel measurement (sigmaBkg)
-            stdFlag:
-                Set to 1 to use standard deviation error calculation
-            jackFlag:
-                Set to 1 to use jack knife error calculation
-            weightFlag:
-                Set to 1 to use weighted magnitude 
-                NOTE: If stdFlag, jackFlag, and weightFlag are all 0,
-                error returned will be 0
 PURPOSE:    Calculates the average magnitude of the target star given the 
             reference stars, and the error in that measurement.
 """
-def calculateMagnitudeAndError(targetStarPhotons, stars, targetStarError, sigmaBkg, stdFlag=1, jackFlag=0, weightFlag=0):
+def calculateMagnitudeAndError(targetStarPhotons, stars, targetStarError, sigmaBkg):
+    global settings
     # Find the magnitude relative to each other star, and then averages them
     ave = 0
     error = 0
@@ -655,7 +753,7 @@ def calculateMagnitudeAndError(targetStarPhotons, stars, targetStarError, sigmaB
 
     # Calculate  error
     w = []
-    if stdFlag == 1:
+    if settings.errorChoice == "STD":
         #Standard deviation as error
         for i in range(len(stars)):
             error = error + ((stars[i].targetMagnitude - ave) * (stars[i].targetMagnitude - ave))
@@ -664,7 +762,7 @@ def calculateMagnitudeAndError(targetStarPhotons, stars, targetStarError, sigmaB
             return 0, 0, 0
         error = error / (len(stars)-1)
         error = math.sqrt(error/len(stars))
-    elif weightFlag == 1:
+    elif settings.errorChoice == "WMG":
         # Error for weighted magnitudes
         sigmaS = targetStarError
         sigmaS = math.sqrt(sigmaS**2 + sigmaBkg**2)
@@ -694,7 +792,7 @@ def calculateMagnitudeAndError(targetStarPhotons, stars, targetStarError, sigmaB
             return 0, 0, 0
         error = math.sqrt(magnitudeSum/((len(stars)-1) * weightSum))
         #error = math.sqrt(1/weightSum)
-    elif jackFlag == 1:
+    elif settings.errorChoice == "JKF":
         # Calculate Jack Knife error formula
         mM0 = []
         aveMM0 = 0
@@ -729,19 +827,19 @@ def worldCoordinateSystem(hdul):
 """
 NAME:       getWCS
 RETURNS:    New .fits file with WCS included
-PARAMETERS: API key for user login to astrometry.net (key)
-            Name of the file to be submitted (file)
-            checkupFlag:
-                Set to 0 for no print statements, set to 1 for printed updates
+PARAMETERS: Name of the file to be submitted (file)
+            Starting guess RA (ra)
+            Starting guess declination (dec)
 PURPOSE:    Add WCS header to .fits file without one using astrometry.net
 """
-def getWCS(key, file, ra=0, dec=0, checkupFlag=1):
+def getWCS(file, ra=0, dec=0):
+    global settings
     # Log in to astrometry.net
-    if checkupFlag == 1:
+    if settings.consolePrintFlag == 1:
         print("Starting getWCS")
     astrometry = Client()
-    astrometry.login(key)
-    if checkupFlag == 1:
+    astrometry.login(settings.astrometryDotNetFlag)
+    if settings.consolePrintFlag == 1:
         print("Logged in")
 
     #Get previous jobid
@@ -751,13 +849,13 @@ def getWCS(key, file, ra=0, dec=0, checkupFlag=1):
         oldJobid = 0
 
     # Upload file to astrometry.net
-    if checkupFlag == 1:
+    if settings.consolePrintFlag == 1:
         print("Uploading File")
     if ra == 0 or dec == 0:
         response = astrometry.upload(fn=file)
     else:
         response = astrometry.upload(fn=file, center_ra=ra, center_dec=dec, radius=1)
-    if checkupFlag == 1:
+    if settings.consolePrintFlag == 1:
         print("File Uploaded")
 
     # Create new output directory if none exists
@@ -776,15 +874,19 @@ def getWCS(key, file, ra=0, dec=0, checkupFlag=1):
         while oldJobid == jobid:
             jCheck = jCheck + 1
             jobid = astrometry.myjobs()[0]
-            if checkupFlag == 1:
+            if settings.consolePrintFlag == 1:
               if jCheck%10 == 0:
                    print("Preparing job ID for", jCheck, "iterations. Please hold.")
-        if checkupFlag == 1:
+            if jCheck > 1500:
+                if settings.consolePrintFlag == 1:
+                    print("Job failed.")
+                return 0
+        if settings.consolePrintFlag == 1:
             print("Job ID retreived: ", jobid)
 
         # Request final product from website
         joburl = 'http://nova.astrometry.net/new_fits_file/' + str(jobid)
-        if checkupFlag == 1:
+        if settings.consolePrintFlag == 1:
             print("File requested at ", joburl)
 
         # Wait for the file to finish downloading before progessing
@@ -795,25 +897,25 @@ def getWCS(key, file, ra=0, dec=0, checkupFlag=1):
             solve = 0
             while(status == 'solving'):
                 status = astrometry.job_status(jobid)
-                if checkupFlag == 1:
+                if settings.consolePrintFlag == 1:
                     solve = solve + 1
                     if solve % 50 == 0:
                         print("File solving for", solve, "iterations. Please hold.")
             results = requests.get(joburl, allow_redirects=False)
             if astrometry.job_status(jobid) == 'failure':
-                if checkupFlag == 1:
+                if settings.consolePrintFlag == 1:
                     print("Job failed.")
                 return 0
             problem = results.content[0]
     except TimeoutError:
-        if checkupFlag == 1:
+        if settings.consolePrintFlag == 1:
             print("Job timed out.")
         return 0
     #Writing results to file
     file = open(filename, 'wb')
     file.write(results.content)
     file.close()
-    if checkupFlag == 1:
+    if settings.consolePrintFlag == 1:
         print("File written to ", filename)
     return filename
     return 0
@@ -825,60 +927,21 @@ RETURNS:    A Photometry object with the data gained during
             computed
 PARAMETERS: The right ascension of the target star in Decimal Degrees (targetStarRA)
             The declination of the target star in Decimal Degrees (targetStarDec)
-            The apikey for use with astrometry.net (key)
             The main .fits file with the image data name (mainFile)
             The dark frame .fits file name (darkFrame)
-                NOTE: Not used when calibrationFlag = 0
             The flat field .fits file name (flatField)
-                NOTE: Not used when calibrationFlag = 0
-            The bias frame .fits file name (biasFrame)
-                NOTE: Not included by default
-            calibrationFlag:
-                Set 0 to skip calibration, 1 to calibrate
-            calibrationOutputFlag:
-                Set 0 to not create an output file with the
-                calibrated image, set to 1 to output calibrated
-                image data.
-            calibrationFile:
-                Set to name of file for calibrated output, default is
-                "output.fits".
-            readFlag
-                Set 0 to find stars, set 1 to load stars from a
-                file
-            magnitudeFlag:
-                Set 0 to skip magnitude calculation, 1 to 
-                calculate magnitude
-            fwhmFlag:
-                Set 0 to use a calculated radius based on
-                the target star gradient, set to 1 to use 
-                three times the full width half mass of the 
-                target star as the radius
-            printFlag:
-                Set 0 to not print stars to a file, and set
-                1 to print stars to a file
-            readInReferenceFilename:
-                The name of the file to read in from, if not
-                set it will be stars.csv
-            consoleFlag:
-                Set to 1 to output answer to console
 PURPOSE:    This method combines the methods in this file to perform 
             full differential photometry on one image file. 
 """
-def letsGo(targetStarRA, targetStarDec, key,
-           mainFile, darkFrame, flatField, biasFrame=0,
-           calibrationFlag=1, calibrationOutputFlag=0, calibrationFile="output.fits",
-           readFlag=0, magnitudeFlag=1, fwhmFlag=1,
-           printFlag=1, readInReferenceFilename="stars.csv", consoleFlag=0):
-    if calibrationFlag == 1:
+def letsGo(targetStarRA, targetStarDec, mainFile, darkFrame, flatField):
+    global settings
+    if settings.calibrationFlag == 1:
         # Calibrate the image
-        hdul = calibrate(mainFile, darkFrame, flatField, bias=biasFrame, outputFlag=calibrationOutputFlag, calibrationFile=calibrationFile)
+        hdul = calibrate(mainFile, darkFrame, flatField)
     else:
         # Use the raw image
         hdul = fits.open(mainFile)
     if hdul == 0:
-        return 0
-    if magnitudeFlag == 0:
-        # Leave the function if not calculating magnitude
         return 0
 
     # Calculate magnitude
@@ -896,17 +959,19 @@ def letsGo(targetStarRA, targetStarDec, key,
     try:
         hdul[0].header['CRVAL1']
     except KeyError:
-        # If it doesn't have WCS, add it
-        mainFile = getWCS(key, mainFile, ra=targetStarRA, dec=targetStarDec)
-        if mainFile == 0:
+        if settings.astrometryDotNetFlag == 0:
             return 0
-        if calibrationFlag == 1:
-            # Calibrate the image
-            hdul = calibrate(mainFile, darkFrame, flatField, bias=biasFrame, outputFlag=calibrationOutputFlag,
-                             calibrationFile=calibrationFile)
         else:
-            # Use the raw image
-            hdul = fits.open(mainFile)
+            # If it doesn't have WCS, add it
+            mainFile = getWCS(mainFile, ra=targetStarRA, dec=targetStarDec)
+            if mainFile == 0:
+                return 0
+            if settings.calibrationFlag == 1:
+                # Calibrate the image
+                hdul = calibrate(mainFile, darkFrame, flatField)
+            else:
+                # Use the raw image
+                hdul = fits.open(mainFile)
 
     # Calculate magnitude
     # w is the reference of world coordinates for this image
@@ -922,7 +987,7 @@ def letsGo(targetStarRA, targetStarDec, key,
     # Center the star (IN PROGRESS)
     #pixRA, pixDec = findCenter(int(Y), int(X), hdul[0].data)
 
-    if fwhmFlag == 1:
+    if settings.fwhmFlag == 1:
         try:
             # Check if the file has FWHM
             radius = int(3 * hdul[0].header['FWHM'])
@@ -937,15 +1002,22 @@ def letsGo(targetStarRA, targetStarDec, key,
     blankSkyPhotons = findBlank(hdul[0].data, radius)
 
     # Find the photon counts in the target star
-    targetStarPhotons, targetStarError = starCount(Y, X, hdul[0].data, radius, blank=blankSkyPhotons)
+    targetStarPhotons, targetStarError = starCount(Y, X, hdul[0].data, radius, blankSkyPhotons)
 
     # Find reference stars
-    if readFlag == 1:
+    if not(settings.readInReferenceFlag == 0):
+        if settings.readInReferenceFlag[len(settings.readInReferenceFlag)-1] == 'v' and settings.readInReferenceFlag[len(settings.readInReferenceFlag)-2] == 's' and settings.readInReferenceFlag[len(settings.readInReferenceFlag)-3] == 'c':
+            readInReferenceFilename = settings.readInReferenceFlag
+        else:
+            for filename in glob.glob(os.path.join(settings.readInReferenceFlag, '*.csv')):
+                with open(os.path.join(os.getcwd(), filename), 'r') as f:
+                    readInReferenceFilename = filename
         # Read in reference stars from file
-        stars = readFromFile(readInReferenceFilename, radius, hdul[0].data, w, blank=blankSkyPhotons)
+        print(readInReferenceFilename)
+        stars = readFromFile(readInReferenceFilename, radius, hdul[0].data, w, blankSkyPhotons)
     else:
         # Finding new stars automatically
-        stars = findOtherStars(Y, X, hdul[0].data, radius, blankSkyPhotons, w)
+        stars = findOtherStars(Y, X, hdul[0].data, radius, w, blankSkyPhotons)
 
     # Calculate magnitudes, average, and error
     a = radius * radius * math.pi
@@ -954,7 +1026,7 @@ def letsGo(targetStarRA, targetStarDec, key,
     if ave == 0 and error == 0:
         print("Problem with first calculation.")
         return 0
-
+    """
     # Remove outliers
     if error >= (ave/20):
         print("I calculate there may be some outliers in the data. Review this list "
@@ -980,14 +1052,14 @@ def letsGo(targetStarRA, targetStarDec, key,
         if ave == 0 and error == 0:
             print("Problem with second calculation.")
             return 0
-
+            """
     # Console output
-    if consoleFlag == 1:
+    if settings.consolePrintFlag == 1:
         print("The magnitude of the star is ", ave )
         print("The error of this calculation is ", error)
 
     # Printing reference stars to files
-    if printFlag == 1:
+    if settings.printReferenceStarsFlag == 1:
         n = mainFile.split("/")
         na = n[len(n)-1]
         printReferenceToFile(stars, filename=na[0:10]+"_referencestars.csv")
@@ -1083,22 +1155,19 @@ PURPOSE:    Calculates the average magnitude of the target star given the
             reference stars, and the error in that measurement by calculating
             standard deviation of the calculated magnitudes.
 """
-def runFiles(targetStarRA, targetStarDec, key,
-            dirName, darkDirName, flatDirName, bias=0,
-            calibrationFlag=1, calibrationOutputFlag=0, calibrationOutputFile="output.fits",
-            readFlag=0, magnitudeFlag=1, fwhmFlag=1,
-            printFlag=1, consoleFlag=0):
+def runFiles(targetStarRA, targetStarDec,
+            dirName, darkDirName, flatDirName):
+    global settings
     path = dirName
     # Make arrays of files and julian dates
     darkArray = getFiles(darkDirName)
     flatArray = getFiles(flatDirName)
-    if not(bias == 0):
-        biasArray = getFiles(bias)
+    #biasArray = getFiles(bias)
 
     results = []
     readFile = "stars.csv"
     # Check for a read in file
-    if readFlag == 1:
+    if not(settings.readInReferenceFlag == 0):
         for filename in glob.glob(os.path.join(path, '*.csv')):
             with open(os.path.join(os.getcwd(), filename), 'r') as f:
                 readFile = filename
@@ -1109,16 +1178,11 @@ def runFiles(targetStarRA, targetStarDec, key,
             # Get calibration files:
             dark = matchCal(filename, darkArray)
             flat = matchCal(filename, flatArray)
-            if not (bias == 0):
-                bias = matchCal(filename, biasArray)
+            #bias = matchCal(filename, biasArray)
 
             print("Filename:", filename)
             print("Chosen Calibration files:", dark, flat)
-            x = letsGo(targetStarRA, targetStarDec, key, filename, dark, flat, biasFrame=bias,
-                calibrationFlag=calibrationFlag, calibrationOutputFlag=calibrationOutputFlag,
-                calibrationFile=calibrationOutputFile,
-                readFlag=readFlag, magnitudeFlag=magnitudeFlag, fwhmFlag=fwhmFlag,
-                printFlag=printFlag, readInReferenceFilename=readFile, consoleFlag=consoleFlag)
+            x = letsGo(targetStarRA, targetStarDec, filename, dark)
             if x != 0:
                 results.append(x)
 
@@ -1128,14 +1192,9 @@ def runFiles(targetStarRA, targetStarDec, key,
             # Get calibration files:
             dark = matchCal(filename, darkArray)
             flat = matchCal(filename, flatArray)
-            if not (bias == 0):
-                bias = matchCal(filename, biasArray)
+            #bias = matchCal(filename, biasArray)
 
-            x = letsGo(targetStarRA, targetStarDec, key, filename, dark, flat, biasFrame=bias,
-                           calibrationFlag=calibrationFlag, calibrationOutputFlag=calibrationOutputFlag,
-                           calibrationFile=calibrationOutputFile,
-                           readFlag=readFlag, magnitudeFlag=magnitudeFlag, fwhmFlag=fwhmFlag,
-                           printFlag=printFlag, readInReferenceFilename=readFile, consoleFlag=consoleFlag)
+            x = letsGo(targetStarRA, targetStarDec, filename, dark, flat)
             if x != 0:
                 results.append(x)
     return results
@@ -1174,5 +1233,5 @@ def createReferenceData(info, targetStarName="Star"):
         ans = []
         for j in range(len(arr[i][1])):
             ans.append(arr[i][1][j])
-        plotResults(ans, chartname="July 14 "+targetStarName+" Option A with "+str(arr[i][0])+".pdf", chartTitle="July 14 "+targetStarName+" Option A with "+str(arr[i][0]), showFlag=0)
+        plotResults(ans, chartname="July 14 "+targetStarName+" Option A with "+str(arr[i][0])+".pdf", chartTitle="July 14 "+targetStarName+" Option A with "+str(arr[i][0]))
         printResultsToFile(ans, targetStarName+" Option A with "+str(arr[i][0])+".csv")
