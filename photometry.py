@@ -61,10 +61,12 @@ class Photometry:
 
 class Settings:
     def __init__(self):
-        # biasFlag:
-        # 0 = not using bias files for calculations
-        # directory name = using bias files
-        self.biasFlag = 0
+        # subtractBiasFromDarkFlag:
+        # 0 = use dark and bias as-is
+        # 1 = subtract bias from dark before calibrating
+        #   NOTE: Dark files from the Great Basin Observatory have bias included and the bias
+        #         will need to be subtracted out
+        self.subtractBiasFromDarkFlag = 1
 
         # calibrationOutputFlag:
         # 0 = not outputting calibrated files
@@ -153,28 +155,42 @@ class Settings:
 
 settings = Settings()
 
-def changeSettings(biasFlag=settings.biasFlag, calibrationOutputFlag=settings.calibrationOutputFlag,
-                   calibrationFlag=settings.calibrationFlag, blankPerStarFlag=settings.blankPerStarFlag,
-                   catalogChoice=settings.catalogChoice, filterChoice=settings.filterChoice,
-                   lightCurveLineFlag=settings.lightCurveLineFlag, showLightCurveFlag=settings.showLightCurveFlag,
-                   errorChoice=settings.errorChoice, consolePrintFlag=settings.consolePrintFlag,
-                   readInReferenceFlag=settings.readInReferenceFlag, fwhmFlag=settings.fwhmFlag,
-                   printReferenceStarsFlag=settings.printReferenceStarsFlag, astrometryDotNetFlag=settings.astrometryDotNetFlag):
+def changeSettings(subtractBiasFromDarkFlag=-1, calibrationOutputFlag=-1,
+                   calibrationFlag=-1, blankPerStarFlag=-1,
+                   catalogChoice=-1, filterChoice=-1,
+                   lightCurveLineFlag=-1, showLightCurveFlag=-1,
+                   errorChoice=-1, consolePrintFlag=-1,
+                   readInReferenceFlag=-1, fwhmFlag=-1,
+                   printReferenceStarsFlag=-1, astrometryDotNetFlag=-1):
     global settings
-    settings.biasFlag = biasFlag
-    settings.calibrationOutputFlag = calibrationOutputFlag
-    settings.calibrationFlag = calibrationFlag
-    settings.blankPerStarFlag = blankPerStarFlag
-    settings.catalogChoice = catalogChoice
-    settings.filterChoice = filterChoice
-    settings.lightCurveLineFlag = lightCurveLineFlag
-    settings.showLightCurveFlag = showLightCurveFlag
-    settings.errorChoice = errorChoice
-    settings.consolePrintFlag = consolePrintFlag
-    settings.readInReferenceFlag = readInReferenceFlag
-    settings.fwhmFlag = fwhmFlag
-    settings.printReferenceStarsFlag = printReferenceStarsFlag
-    settings.astrometryDotNetFlag = astrometryDotNetFlag
+    if not (subtractBiasFromDarkFlag == -1):
+        settings.subtractBiasFromDarkFlag = subtractBiasFromDarkFlag
+    if not (calibrationOutputFlag == -1):
+        settings.calibrationOutputFlag = calibrationOutputFlag
+    if not (calibrationFlag == -1):
+        settings.calibrationFlag = calibrationFlag
+    if not (blankPerStarFlag == -1):
+        settings.blankPerStarFlag = blankPerStarFlag
+    if not (catalogChoice == -1):
+        settings.catalogChoice = catalogChoice
+    if not (filterChoice == -1):
+        settings.filterChoice = filterChoice
+    if not (lightCurveLineFlag == -1):
+        settings.lightCurveLineFlag = lightCurveLineFlag
+    if not (showLightCurveFlag == -1):
+        settings.showLightCurveFlag = showLightCurveFlag
+    if not (errorChoice == -1):
+        settings.errorChoice = errorChoice
+    if not (consolePrintFlag == -1):
+        settings.consolePrintFlag = consolePrintFlag
+    if not (readInReferenceFlag == -1):
+        settings.readInReferenceFlag = readInReferenceFlag
+    if not (fwhmFlag == -1):
+        settings.fwhmFlag = fwhmFlag
+    if not (printReferenceStarsFlag == -1):
+        settings.printReferenceStarsFlag = printReferenceStarsFlag
+    if not (astrometryDotNetFlag == -1):
+        settings.astrometryDotNetFlag = astrometryDotNetFlag
 
 """
 NAME:       calibrate
@@ -182,10 +198,11 @@ RETURNS:    calibrated data
 PARAMETERS: the file to be calibrated (filename)
             the dark frame (dark)
             the flat frame (flat)
+            the bias frame (bias)
 PURPOSE:    To calibrate raw .fits files into a form that can 
             be used to calculate accurate magnitude data. 
 """
-def calibrate(filename, dark, flat):
+def calibrate(filename, dark, bias, flat):
     global settings
     # Open the files
     try:
@@ -197,23 +214,23 @@ def calibrate(filename, dark, flat):
     #the dark, and flat .fit files
     hdulDark = fits.open(dark)
     hdulFlat = fits.open(flat)
+    hdulBias = fits.open(bias)
 
     # Extract data from the files
     data = hdul[0].data
     dataDark = hdulDark[0].data
     dataFlat = hdulFlat[0].data
+    dataBias = hdulBias[0].data
+
+    # Check if bias needs to be subtracted from dark
+    if settings.subtractBiasFromDarkFlag == 1:
+        dataDark = dataDark - dataBias
 
     # Calibrate the files, and then reassign the calibrated data to the
     # original data
-    data = data - dataDark #Subtract the dark frame from the data
-
-    #Bias calculations if bias is specified
-    if not(settings.biasFlag == 0):
-        biasArray = getFiles(settings.biasFlag)
-        bias = matchCal(filename, biasArray)
-        hdulBias = fits.open(bias)
-        dataBias = hdulBias[0].data
-        data = data - dataBias
+    expTime = hdul[0].header['EXPTIME']/hdulDark[0].header['EXPTIME']
+    data = data - (dataDark * expTime) #Subtract the dark frame from the data
+    data = data - dataBias #Subtract the bias frame from the data
 
     dataFlatNorm = dataFlat / np.mean(dataFlat) #Normalize the flat frame information
     data = data // dataFlatNorm #Divide out the normalized flat frame data
@@ -882,7 +899,7 @@ def getWCS(file, ra=0, dec=0):
             jCheck = jCheck + 1
             jobid = astrometry.myjobs()[0]
             if settings.consolePrintFlag == 1:
-              if jCheck%10 == 0:
+              if jCheck%50 == 0:
                    print("Preparing job ID for", jCheck, "iterations. Please hold.")
             if jCheck > 1500:
                 if settings.consolePrintFlag == 1:
@@ -897,7 +914,6 @@ def getWCS(file, ra=0, dec=0):
             print("File requested at ", joburl)
 
         # Wait for the file to finish downloading before progessing
-        check = True
         problem = 112
         while problem == 112:
             status = astrometry.job_status(jobid)
@@ -940,11 +956,11 @@ PARAMETERS: The right ascension of the target star in Decimal Degrees (targetSta
 PURPOSE:    This method combines the methods in this file to perform 
             full differential photometry on one image file. 
 """
-def letsGo(targetStarRA, targetStarDec, mainFile, darkFrame, flatField):
+def letsGo(targetStarRA, targetStarDec, mainFile, darkFrame, biasFrame, flatField):
     global settings
     if settings.calibrationFlag == 1:
         # Calibrate the image
-        hdul = calibrate(mainFile, darkFrame, flatField)
+        hdul = calibrate(mainFile, darkFrame, biasFrame, flatField)
     else:
         # Use the raw image
         hdul = fits.open(mainFile)
@@ -975,7 +991,7 @@ def letsGo(targetStarRA, targetStarDec, mainFile, darkFrame, flatField):
                 return 0
             if settings.calibrationFlag == 1:
                 # Calibrate the image
-                hdul = calibrate(mainFile, darkFrame, flatField)
+                hdul = calibrate(mainFile, darkFrame, biasFrame, flatField)
             else:
                 # Use the raw image
                 hdul = fits.open(mainFile)
@@ -1093,14 +1109,14 @@ def getFiles(dirName):
             # Open the files
             hdul = fits.open(filename)  # hdul is the computer version of
                                         # the file data
-            files.append(Photometry(filename, hdul[0].header['JD'], 0, 0, []))
+            files.append(Photometry(filename, hdul[0].header['JD'], hdul[0].header['EXPTIME'], 0, []))
             hdul.close()
     for filename in glob.glob(os.path.join(dirName, '*.fts')):
         with open(os.path.join(os.getcwd(), filename), 'r') as f:
             # Open the files
             hdul = fits.open(filename)  # hdul is the computer version of
                                         # the file data
-            files.append(Photometry(filename, hdul[0].header['JD'], 0, 0, []))
+            files.append(Photometry(filename, hdul[0].header['JD'], hdul[0].header['EXPTIME'], 0, []))
             hdul.close()
     return files
 
@@ -1113,16 +1129,37 @@ PURPOSE:    Match a data file to its closest calibration file by date
 """
 def matchCal(filename, cals):
     calName = ""
+    possCals = []
     minTimeDiff = 100000000000
     hdul = fits.open(filename)
     currDate = hdul[0].header['JD']
+    currExp = hdul[0].header['EXPTIME']
+    hdul.close()
     # Find calibration file with smallest time difference from image file
     for i in range(len(cals)):
         if abs(currDate - cals[i].JD) < minTimeDiff:
             minTimeDiff = abs(currDate - cals[i].JD)
             calName = cals[i].fileName
-    hdul.close()
-    return calName
+        if abs(currDate - cals[i].JD) < 1.5:
+            # If there are multiple files on same day as the target image
+            # collect them to measure by exposure
+            temp = []
+            temp.append(cals[i].fileName)
+            temp.append(cals[i].magnitude)
+            possCals.append(temp)
+    # If only one calibration was taken on the same day, just return that one
+    if (len(possCals)) <= 1:
+        return calName
+    else:
+        # Otherwise find the one with the closest exposure time
+        minExpDiff = 100000
+        calName = ""
+        for i in range(len(possCals)):
+            if abs(currExp - possCals[i][1]) < minExpDiff:
+                minExpDiff = abs(currExp - possCals[i][1])
+                calName = possCals[i][0]
+        return calName
+
 
 """
 NAME:       runFiles
@@ -1139,21 +1176,15 @@ PURPOSE:    Calculates the average magnitude of the target star given the
             standard deviation of the calculated magnitudes.
 """
 def runFiles(targetStarRA, targetStarDec,
-            dirName, darkDirName, flatDirName):
+            dirName, darkDirName, biasDirName, flatDirName):
     global settings
     path = dirName
     # Make arrays of files and julian dates
     darkArray = getFiles(darkDirName)
     flatArray = getFiles(flatDirName)
-    #biasArray = getFiles(bias)
+    biasArray = getFiles(biasDirName)
 
     results = []
-    readFile = "stars.csv"
-    # Check for a read in file
-    if not(settings.readInReferenceFlag == 0):
-        for filename in glob.glob(os.path.join(path, '*.csv')):
-            with open(os.path.join(os.getcwd(), filename), 'r') as f:
-                readFile = filename
 
     # Check and run all .fits files
     for filename in glob.glob(os.path.join(path, '*.fits')):
@@ -1161,7 +1192,7 @@ def runFiles(targetStarRA, targetStarDec,
             # Get calibration files:
             dark = matchCal(filename, darkArray)
             flat = matchCal(filename, flatArray)
-            #bias = matchCal(filename, biasArray)
+            bias = matchCal(filename, biasArray)
 
             print("Filename:", filename)
             print("Chosen Calibration files:", dark, flat)
