@@ -145,6 +145,11 @@ class Settings:
         # astrometry.net API key = use astrometry.net with this API key
         self.astrometryDotNetFlag = 0
 
+        # universalBlank:
+        # 0 = blank not calculated
+        # any number = median blank counts
+        self.universalBlank = 0
+
 
 settings = Settings()
 
@@ -370,7 +375,7 @@ PARAMETERS: Center of star pixel Y location (Y)
 PURPOSE:    Taking in information about any star, this method counts
             the photons in a circular area around the center of the star.
 """
-def starCount(Y, X, data, r, blank):
+def starCount(Y, X, data, r):
     global settings
     # Creates an aperture centered around the target star of radius r
     if r <= 0:
@@ -382,12 +387,14 @@ def starCount(Y, X, data, r, blank):
     # Calculate Error in this count
     error = math.sqrt(targetStarPhotons)
     # If set to calculate per star
-    if settings.blankPerStarFlag == 1:
+    if settings.blankPerStarFlag == 1 or settings.universalBlank == 0:
         blankAperture = CircularAnnulus((X, Y), r_in=r, r_out=r*4)
         blankTable = aperture_photometry(data, blankAperture)
         blankPhotons = blankTable['aperture_sum'][0]
         annulusArea = (math.pi * (r*4) * (r*4)) - (math.pi * r * r)
         blank = blankPhotons/annulusArea
+    else:
+        blank = settings.universalBlank
 
     # Subtracts blank counts per every pixel in the star
     targetStarPhotons = targetStarPhotons - ((math.pi * r * r) * blank)
@@ -429,7 +436,7 @@ PURPOSE:    This method locates stars nearby the target stars
             and then calls a helper method to construct a star
             object for the located stars.
 """
-def findOtherStars(Y, X, data, rad, w, blank):
+def findOtherStars(Y, X, data, rad, w):
     global settings
     fCat, fVot, fSim = formatFilter()
     sbad = 0
@@ -461,16 +468,16 @@ def findOtherStars(Y, X, data, rad, w, blank):
                 if type(mag[i]) is np.float32:
                     starX, starY = w.all_world2pix(ra[i], dec[i], 0)
                     # Calculate counts in the star
-                    c, sigmaSrc = starCount(starY, starX, data, rad, blank)
+                    c, sigmaSrc = starCount(starY, starX, data, rad)
                     # Addition of this star to the array of stars objects
                     stars.append(Star("Ref"+str(i), ra[i], dec[i], rad, c, mag[i], 0, sigmaSrc))
         else:
             if settings.consolePrintFlag == 1:
+                print("Catalog has no valid entries. Switching to SIMBAD.")
                 print("WARNING: Using SIMBAD may introduce error into the calculations due to discrepancies in where magnitudes were obtained.")
             sbad = 1
     else:
         if settings.consolePrintFlag == 1:
-            print("Catalog has no valid entries. Switching to SIMBAD.")
             print("WARNING: Using SIMBAD may introduce error into the calculations due to discrepancies in where magnitudes were obtained.")
         sbad = 1
     if sbad == 1 and not(fSim == 0):
@@ -499,7 +506,7 @@ def findOtherStars(Y, X, data, rad, w, blank):
                     degreeDec = tempDec2[0] + (tempDec2[1]/60) + (tempDec2[2]/3600)
                     starX, starY = w.all_world2pix(degreeRa, degreeDec, 0)
                     # Calculate counts in the star
-                    c, sigmaSrc = starCount(starY, starX, data, rad, blank)
+                    c, sigmaSrc = starCount(starY, starX, data, rad)
                     # Addition of this star to the array of stars objects
                     stars.append(Star("Ref"+str(i), degreeRa, degreeDec, rad, c, mag[i], 0, sigmaSrc))
     elif sbad == 1 and len(stars) == 0 and not(fSim == 0):
@@ -562,7 +569,7 @@ PARAMETERS: The name of the file to read from (fileName)
 PURPOSE:    This method reads in data on stars from a
             file to use to calculate the magnitude.
 """
-def readFromFile(fileName, radius, data, w, blank):
+def readFromFile(fileName, radius, data, w):
     file = open(fileName, "r")
     stars = []
     for line in file:
@@ -571,7 +578,7 @@ def readFromFile(fileName, radius, data, w, blank):
             # Pull the star location from file
             X, Y = w.all_world2pix(float(array[1]), float(array[2]), 0)
             # Calculate counts for this image
-            starPhotons, e = starCount(Y, X, data, radius, blank)
+            starPhotons, e = starCount(Y, X, data, radius)
             # Create a star object
             stars.append(Star(array[0], float(array[1]), float(array[2]), radius, starPhotons, float(array[5]), float(array[6]), e))
     return stars
@@ -999,12 +1006,13 @@ def letsGo(targetStarRA, targetStarDec, mainFile, darkFrame, flatField):
         # of the star to the farthest edge of the star
         radius = findRadius(Y, X, hdul[0].data)
     # Find the photon counts per pixel of blank sky
-    blankSkyPhotons = findBlank(hdul[0].data, radius)
+    settings.universalBlank = findBlank(hdul[0].data, radius)
 
     # Find the photon counts in the target star
-    targetStarPhotons, targetStarError = starCount(Y, X, hdul[0].data, radius, blankSkyPhotons)
+    targetStarPhotons, targetStarError = starCount(Y, X, hdul[0].data, radius)
 
     # Find reference stars
+    readInReferenceFilename = "0"
     if not(settings.readInReferenceFlag == 0):
         if settings.readInReferenceFlag[len(settings.readInReferenceFlag)-1] == 'v' and settings.readInReferenceFlag[len(settings.readInReferenceFlag)-2] == 's' and settings.readInReferenceFlag[len(settings.readInReferenceFlag)-3] == 'c':
             readInReferenceFilename = settings.readInReferenceFlag
@@ -1013,20 +1021,22 @@ def letsGo(targetStarRA, targetStarDec, mainFile, darkFrame, flatField):
                 with open(os.path.join(os.getcwd(), filename), 'r') as f:
                     readInReferenceFilename = filename
         # Read in reference stars from file
-        print(readInReferenceFilename)
-        stars = readFromFile(readInReferenceFilename, radius, hdul[0].data, w, blankSkyPhotons)
+        if readInReferenceFilename == "0":
+            stars = findOtherStars(Y, X, hdul[0].data, radius, w)
+        else:
+            stars = readFromFile(readInReferenceFilename, radius, hdul[0].data, w)
     else:
         # Finding new stars automatically
-        stars = findOtherStars(Y, X, hdul[0].data, radius, w, blankSkyPhotons)
+        stars = findOtherStars(Y, X, hdul[0].data, radius, w)
 
     # Calculate magnitudes, average, and error
     a = radius * radius * math.pi
-    sigmaBkg = math.sqrt(a * blankSkyPhotons)
+    sigmaBkg = math.sqrt(a * settings.universalBlank)
     ave, error, stars = calculateMagnitudeAndError(targetStarPhotons, stars, targetStarError, sigmaBkg)
     if ave == 0 and error == 0:
         print("Problem with first calculation.")
         return 0
-    """
+
     # Remove outliers
     if error >= (ave/20):
         print("I calculate there may be some outliers in the data. Review this list "
@@ -1052,7 +1062,7 @@ def letsGo(targetStarRA, targetStarDec, mainFile, darkFrame, flatField):
         if ave == 0 and error == 0:
             print("Problem with second calculation.")
             return 0
-            """
+
     # Console output
     if settings.consolePrintFlag == 1:
         print("The magnitude of the star is ", ave )
@@ -1124,33 +1134,6 @@ PARAMETERS: The right ascension of the target star in Decimal Degrees (targetSta
             Directory containing files to process (dirName)
             Directory containing dark files (darkDirName)
             Directory containing flat files (flatDirName)
-            The bias frame directory name (biasFrame)
-                NOTE: Not included by default
-            calibrationFlag:
-                Set 0 to skip calibration, 1 to calibrate
-            calibrationOutputFlag:
-                Set 0 to not create an output file with the
-                calibrated image, set to 1 to output calibrated
-                image data to "output.fits"
-            calibrationOutputFile:
-                Set to name of file for calibrated output, default is
-                "output.fits".
-            readFlag
-                Set 0 to find stars, set 1 to load stars from a
-                file
-            magnitudeFlag:
-                Set 0 to skip magnitude calculation, 1 to 
-                calculate magnitude
-            fwhmFlag:
-                Set 0 to use a calculated radius based on
-                the target star gradient, set to 1 to use 
-                three times the full width half mass of the 
-                target star as the radius
-            printFlag:
-                Set 0 to not print stars to a file, and set
-                1 to print stars to a file
-            consoleFlag:
-                Set to 1 to output answer to console
 PURPOSE:    Calculates the average magnitude of the target star given the 
             reference stars, and the error in that measurement by calculating
             standard deviation of the calculated magnitudes.
