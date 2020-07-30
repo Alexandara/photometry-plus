@@ -23,7 +23,8 @@ from photutils import CircularAperture
 from photutils import aperture_photometry
 from photutils import CircularAnnulus
 from scipy.interpolate import make_interp_spline, BSpline
-import json
+from scipy import stats
+import statistics
 
 from client import Client
 
@@ -109,9 +110,14 @@ class Settings:
         self.lightCurveLineFlag = 0
 
         # showLightCurveFlag:
-        # 0 = do not print light curve plots to the screen
-        # 1 = print light curve plots to the screen
+        # 0 = do not show light curve plots on the screen
+        # 1 = show light curve plots on the screen
         self.showLightCurveFlag = 0
+
+        # printLightCurveFlag:
+        # 0 = do not print light curve to file
+        # 1 = print light curve to file
+        self.printLightCurveFlag = 1
 
         # errorChoice:
         # STD = use standard deviation method for error management
@@ -132,9 +138,15 @@ class Settings:
         # directory name = detect reference file in directory
         self.readInReferenceFlag = 0
 
+        # readInRadiusFlag:
+        # 0 = use target star radius for all reference stars
+        # 1 = use radius in reference file for reference stars
+        self.readInRadiusFlag = 0
+
         # fwhmFlag:
         # 0 = detect radius for stars manually
         # 1 = use Full-Width Half-Maximum if available as radius for apertures
+        # any other number = use this as the default radius
         self.fwhmFlag = 1
 
         # printReferenceStarsFlag:
@@ -150,7 +162,15 @@ class Settings:
         # universalBlank:
         # 0 = blank not calculated
         # any number = median blank counts
+        #   NOTE: This number is for the program to use, it is not
+        #         intended for use as a setting
         self.universalBlank = 0
+
+        # removeReferenceOutliersFlag:
+        # 0 = do not remove reference star outliers
+        # 3 = remove reference star outliers with absolute value z-score higher than 3
+        # any other number = remove reference stars with absolute value z-scores above this number
+        self.removeReferenceOutliersFlag = 3
 
 
 settings = Settings()
@@ -161,7 +181,9 @@ def changeSettings(subtractBiasFromDarkFlag=-1, calibrationOutputFlag=-1,
                    lightCurveLineFlag=-1, showLightCurveFlag=-1,
                    errorChoice=-1, consolePrintFlag=-1,
                    readInReferenceFlag=-1, fwhmFlag=-1,
-                   printReferenceStarsFlag=-1, astrometryDotNetFlag=-1):
+                   printReferenceStarsFlag=-1, astrometryDotNetFlag=-1,
+                   removeReferenceOutliersFlag=-1, readInRadiusFlag=-1,
+                   printLightCurveFlag=-1):
     global settings
     if not (subtractBiasFromDarkFlag == -1):
         settings.subtractBiasFromDarkFlag = subtractBiasFromDarkFlag
@@ -191,6 +213,12 @@ def changeSettings(subtractBiasFromDarkFlag=-1, calibrationOutputFlag=-1,
         settings.printReferenceStarsFlag = printReferenceStarsFlag
     if not (astrometryDotNetFlag == -1):
         settings.astrometryDotNetFlag = astrometryDotNetFlag
+    if not (removeReferenceOutliersFlag == -1):
+        settings.removeReferenceOutliersFlag = removeReferenceOutliersFlag
+    if not (readInRadiusFlag == -1):
+        settings.readInRadiusFlag = readInRadiusFlag
+    if not (printLightCurveFlag == -1):
+        settings.printLightCurveFlag = printLightCurveFlag
 
 """
 NAME:       calibrate
@@ -394,28 +422,46 @@ PURPOSE:    Taking in information about any star, this method counts
 """
 def starCount(Y, X, data, r):
     global settings
+    extraStar = 0
     # Creates an aperture centered around the target star of radius r
     if r <= 0:
         r = 20
     targetAperture = CircularAperture((X, Y), r=r)
     targetStarTable = aperture_photometry(data, targetAperture)
+
     # Counts the sum in that aperture
     targetStarPhotons = targetStarTable['aperture_sum'][0]
+
     # Calculate Error in this count
     error = math.sqrt(targetStarPhotons)
+
+    # Check if there are stars near this star:
+    blankAperture = CircularAnnulus((X, Y), r_in=r, r_out=r * 4)
+    # Get array containing each pixel of blank
+    blankMask = blankAperture.to_mask(method='center')
+    blankData = blankMask.multiply(data)
+    mask = blankMask.data
+    blankArray = blankData[mask > 0]
+    # Get the median
+    blankMedian = np.median(blankArray)
+    # Get the mode
+    blankMode = statistics.mode(blankArray)
+    # Get the mean
+    blankTable = aperture_photometry(data, blankAperture)
+    blankPhotons = blankTable['aperture_sum'][0]
+    annulusArea = (math.pi * (r * 4) * (r * 4)) - (math.pi * r * r)
+    blankMean = blankPhotons / annulusArea
+    if abs(blankMean-blankMedian) > 50 or abs(blankMean-blankMode) > 50 or abs(blankMode-blankMedian) > 50:
+        extraStar = 1
     # If set to calculate per star
     if settings.blankPerStarFlag == 1 or settings.universalBlank == 0:
-        blankAperture = CircularAnnulus((X, Y), r_in=r, r_out=r*4)
-        blankTable = aperture_photometry(data, blankAperture)
-        blankPhotons = blankTable['aperture_sum'][0]
-        annulusArea = (math.pi * (r*4) * (r*4)) - (math.pi * r * r)
-        blank = blankPhotons/annulusArea
+        blank = blankMode
     else:
         blank = settings.universalBlank
 
     # Subtracts blank counts per every pixel in the star
     targetStarPhotons = targetStarPhotons - ((math.pi * r * r) * blank)
-    return targetStarPhotons, error
+    return targetStarPhotons, error, extraStar
 
 """
 NAME:       formatFilter
@@ -485,9 +531,10 @@ def findOtherStars(Y, X, data, rad, w):
                 if type(mag[i]) is np.float32:
                     starX, starY = w.all_world2pix(ra[i], dec[i], 0)
                     # Calculate counts in the star
-                    c, sigmaSrc = starCount(starY, starX, data, rad)
+                    c, sigmaSrc, extraStar = starCount(starY, starX, data, rad)
                     # Addition of this star to the array of stars objects
-                    stars.append(Star("Ref"+str(i), ra[i], dec[i], rad, c, mag[i], 0, sigmaSrc))
+                    if extraStar == 0:
+                        stars.append(Star("Ref"+str(i), ra[i], dec[i], rad, c, mag[i], 0, sigmaSrc))
         else:
             if settings.consolePrintFlag == 1:
                 print("Catalog has no valid entries. Switching to SIMBAD.")
@@ -523,9 +570,10 @@ def findOtherStars(Y, X, data, rad, w):
                     degreeDec = tempDec2[0] + (tempDec2[1]/60) + (tempDec2[2]/3600)
                     starX, starY = w.all_world2pix(degreeRa, degreeDec, 0)
                     # Calculate counts in the star
-                    c, sigmaSrc = starCount(starY, starX, data, rad)
+                    c, sigmaSrc, extraStar = starCount(starY, starX, data, rad)
                     # Addition of this star to the array of stars objects
-                    stars.append(Star("Ref"+str(i), degreeRa, degreeDec, rad, c, mag[i], 0, sigmaSrc))
+                    if extraStar == 0:
+                        stars.append(Star("Ref"+str(i), degreeRa, degreeDec, rad, c, mag[i], 0, sigmaSrc))
     elif sbad == 1 and len(stars) == 0 and not(fSim == 0):
         if settings.consolePrintFlag == 1:
             print("No reference stars found.")
@@ -594,10 +642,17 @@ def readFromFile(fileName, radius, data, w):
         if not(array[0] == 'Name') and not(array[0] == '\n') and not(array[0] == '') and not(array[0] == 'ID'):
             # Pull the star location from file
             X, Y = w.all_world2pix(float(array[1]), float(array[2]), 0)
-            # Calculate counts for this image
-            starPhotons, e = starCount(Y, X, data, radius)
-            # Create a star object
-            stars.append(Star(array[0], float(array[1]), float(array[2]), radius, starPhotons, float(array[5]), float(array[6]), e))
+            if settings.readInRadiusFlag == 0:
+                # Calculate counts for this image
+                starPhotons, e, extraStar = starCount(Y, X, data, radius)
+                # Create a star object
+                stars.append(Star(array[0], float(array[1]), float(array[2]), radius, starPhotons, float(array[5]), float(array[6]), e))
+            elif settings.readInRadiusFlag == 1:
+                # Calculate counts for this image
+                starPhotons, e, extraStar = starCount(Y, X, data, float(array[3]))
+                # Create a star object
+                stars.append(Star(array[0], float(array[1]), float(array[2]), float(array[3]), starPhotons, float(array[5]),
+                                  float(array[6]), e))
     return stars
 
 """
@@ -646,7 +701,9 @@ def printResultsToFile(info, filename="output.csv"):
         trJD = truncate(info[i].JD, 6)
         trMag = truncate(info[i].magnitude, 2)
         trErr = truncate(info[i].error, 6)
-        file.write(info[i].fileName + "," + str(trJD) + "," + str(trMag) + ","
+        n = info[i].fileName.split("/")
+        na = n[len(n) - 1]
+        file.write(na + "," + str(trJD) + "," + str(trMag) + ","
                    + str(trErr) + ", \n")
     trChi = truncate(reducedChiSquared(info), 2)
     file.write("X,Reduced Chi Square: " + str(trChi) + ", \n")
@@ -693,7 +750,8 @@ def plotResultsFile(filename, chartname="chart.pdf", chartTitle="Light Curve"):
     # Inverting the y axis because a smaller magnitude is a brighter object
     plt.gca().invert_yaxis()
     chartname = "Output/" + chartname
-    plt.savefig(chartname)  # to save to file
+    if settings.printLightCurveFlag == 1:
+        plt.savefig(chartname)  # to save to file
     if settings.showLightCurveFlag == 1:
         plt.show()  # to print to screen
     plt.clf()
@@ -736,7 +794,8 @@ def plotResults(ans, chartname="chart.pdf", chartTitle="Light Curve"):
     # Inverting the y axis because a smaller magnitude is a brighter object
     plt.gca().invert_yaxis()
     chartname = "Output/" + chartname
-    plt.savefig(chartname)  # to save to file
+    if settings.printLightCurveFlag == 1:
+        plt.savefig(chartname)  # to save to file
     if settings.showLightCurveFlag == 1:
         plt.show()  # to print to screen
     plt.clf()
@@ -944,6 +1003,31 @@ def getWCS(file, ra=0, dec=0):
     return 0
 
 """
+NAME:       removeReferenceOutliers
+RETURNS:    Reference stars without outliers for a target star calculation
+PARAMETERS: Array of reference stars (stars)
+PURPOSE:    Remove outlier target magnitudes to create better results
+"""
+def removeReferenceOutliers(stars):
+    global settings
+    # This is sigma-clipping
+    if settings.removeReferenceOutliersFlag == 0:
+        return stars
+    # Calculate Z-score
+    tMags = []
+    for i in range(len(stars)):
+        tMags.append(stars[i].targetMagnitude)
+    z = np.abs(stats.zscore(tMags))
+    # Remove the stars that are higher than the specified z-score
+    toRemoveStars = []
+    for i in range(len(stars)):
+        if z[i] >= settings.removeReferenceOutliersFlag:
+            toRemoveStars.append(stars[i])
+    for i in range(len(toRemoveStars)):
+        stars.remove(toRemoveStars[i])
+    return stars
+
+"""
 NAME:       letsGo
 RETURNS:    A Photometry object with the data gained during 
             this process OR 0 if the magnitude cannot be
@@ -1017,15 +1101,19 @@ def letsGo(targetStarRA, targetStarDec, mainFile, darkFrame, biasFrame, flatFiel
         except KeyError:
             # If not, find radius manually
             radius = findRadius(Y, X, hdul[0].data)
-    else:
+    elif settings.fwhmFlag == 0:
         # Set the radius to the distance from the center
         # of the star to the farthest edge of the star
         radius = findRadius(Y, X, hdul[0].data)
+    else:
+        radius = settings.fwhmFlag
     # Find the photon counts per pixel of blank sky
     settings.universalBlank = findBlank(hdul[0].data, radius)
 
     # Find the photon counts in the target star
-    targetStarPhotons, targetStarError = starCount(Y, X, hdul[0].data, radius)
+    targetStarPhotons, targetStarError, extraStar = starCount(Y, X, hdul[0].data, radius)
+    if extraStar == 1:
+        print("WARNING: There may be another star near the target star.")
 
     # Find reference stars
     readInReferenceFilename = "0"
@@ -1053,31 +1141,17 @@ def letsGo(targetStarRA, targetStarDec, mainFile, darkFrame, biasFrame, flatFiel
         print("Problem with first calculation.")
         return 0
 
-    # Remove outliers
-    if error >= (ave/20):
-        print("I calculate there may be some outliers in the data. Review this list "
-              + "below for outliers: ")
-        for i in range(len(stars)):
-            print(str(i+1) + ") " + str(stars[i].targetMagnitude))
-        print("The calculated average magnitude is " + str(ave) +" and the calculated error is "
-              + str(error) + ".")
-        print("\nPlease input the number next to the magnitudes you want to remove from the calculations: "
-              + "(enter 100 if there are no more outliers to remove) ")
-        x = input()
-        x = int(x)
-        toRemoveStars = []
-        while x != 100:
-            toRemoveStars.append(stars[x-1])
-            x = input()
-            x = int(x)
-        for i in range(len(toRemoveStars)):
-            stars.remove(toRemoveStars[i])
+    if not(settings.removeReferenceOutliersFlag == 0):
+        firstAve = ave
+        firstError = error
+        # Remove outliers
+        stars = removeReferenceOutliers(stars)
 
         # Recalculate average magnitude and standard deviation without outliers
         ave, error, stars = calculateMagnitudeAndError(targetStarPhotons, stars, targetStarError, sigmaBkg)
         if ave == 0 and error == 0:
-            print("Problem with second calculation.")
-            return 0
+            ave = firstAve
+            error = firstError
 
     # Console output
     if settings.consolePrintFlag == 1:
