@@ -445,7 +445,10 @@ def starCount(Y, X, data, r):
     # Get the median
     blankMedian = np.median(blankArray)
     # Get the mode
-    blankMode = statistics.mode(blankArray)
+    try:
+        blankMode = statistics.mode(blankArray)
+    except statistics.StatisticsError:
+        blankMode = blankMedian
     # Get the mean
     blankTable = aperture_photometry(data, blankAperture)
     blankPhotons = blankTable['aperture_sum'][0]
@@ -517,7 +520,12 @@ def findOtherStars(Y, X, data, rad, w):
         if settings.consolePrintFlag == 1:
             print("Querying Vizier Catalog: ", settings.catalogChoice)
         # Query all stars in the image
-        result = Vizier.query_region(skyC, radius='0d10m0s', catalog=settings.catalogChoice)
+        try:
+            result = Vizier.query_region(skyC, radius='0d10m0s', catalog=settings.catalogChoice)
+        except requests.exceptions.ConnectionError:
+            if settings.consolePrintFlag == 1:
+                print("Connection Error: Check your internet connection before searching for reference stars")
+            return 0
         # Check if there are results
         if not (result is None):
             if settings.consolePrintFlag == 1:
@@ -549,7 +557,12 @@ def findOtherStars(Y, X, data, rad, w):
             print("Querying SIMBAD")
         # Query all stars in the image
         # Query in an area about the size of the image from GBO
-        result = customSimbad.query_region(skyC, radius='0d10m0s')  # This line creates warnings
+        try:
+            result = customSimbad.query_region(skyC, radius='0d10m0s')  # This line creates warnings
+        except requests.exceptions.ConnectionError:
+            if settings.consolePrintFlag == 1:
+                print("Connection Error: Check your internet connection before searching for reference stars")
+            return 0
         # If there are any results:
         if not (result is None):
             ra = result['RA']
@@ -921,7 +934,12 @@ def getWCS(file, ra=0, dec=0):
     if settings.consolePrintFlag == 1:
         print("Starting getWCS")
     astrometry = Client()
-    astrometry.login(settings.astrometryDotNetFlag)
+    try:
+        astrometry.login(settings.astrometryDotNetFlag)
+    except:
+        if settings.consolePrintFlag == 1:
+            print("Astrometry.net login error: Check if login is accurate and internet connection is secure")
+        return 0
     if settings.consolePrintFlag == 1:
         print("Logged in")
 
