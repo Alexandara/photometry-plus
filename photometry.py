@@ -249,7 +249,6 @@ def calibrate(filename, dark, bias, flat):
     dataDark = hdulDark[0].data
     dataFlat = hdulFlat[0].data
     dataBias = hdulBias[0].data
-
     # Check if bias needs to be subtracted from dark
     if settings.subtractBiasFromDarkFlag == 1:
         dataDark = dataDark - dataBias
@@ -257,10 +256,11 @@ def calibrate(filename, dark, bias, flat):
     # Calibrate the files, and then reassign the calibrated data to the
     # original data
     expTime = hdul[0].header['EXPTIME']/hdulDark[0].header['EXPTIME']
-    data = data - (dataDark * expTime) #Subtract the dark frame from the data
+    dataDark = dataDark * expTime
+    data = data - dataDark #Subtract the dark frame from the data
     data = data - dataBias #Subtract the bias frame from the data
 
-    dataFlatNorm = dataFlat / np.mean(dataFlat) #Normalize the flat frame information
+    dataFlatNorm = dataFlat / np.median(dataFlat) #Normalize the flat frame information
     data = data // dataFlatNorm #Divide out the normalized flat frame data
     hdul[0].data = data #This sets the calibrated data to be a part of the
                         #hdul object
@@ -269,7 +269,9 @@ def calibrate(filename, dark, bias, flat):
     if settings.calibrationOutputFlag == 1:
         if not os.path.exists("Output"):
             os.mkdir("Output")
-        calibrationFile = "Output/CALIBRATED_" + filename
+        n = filename.split("/")
+        na = n[len(n) - 1]
+        calibrationFile = "Output/CALIBRATED_" + na
         hdul.writeto(calibrationFile, overwrite=True)
     return hdul
 
@@ -422,6 +424,7 @@ PURPOSE:    Taking in information about any star, this method counts
 """
 def starCount(Y, X, data, r):
     global settings
+    blank = 0
     extraStar = 0
     # Creates an aperture centered around the target star of radius r
     if r <= 0:
@@ -433,31 +436,34 @@ def starCount(Y, X, data, r):
     targetStarPhotons = targetStarTable['aperture_sum'][0]
 
     # Calculate Error in this count
-    error = math.sqrt(targetStarPhotons)
+    error = math.sqrt(abs(targetStarPhotons))
 
     # Check if there are stars near this star:
     blankAperture = CircularAnnulus((X, Y), r_in=r, r_out=r * 4)
-    # Get array containing each pixel of blank
-    blankMask = blankAperture.to_mask(method='center')
-    blankData = blankMask.multiply(data)
-    mask = blankMask.data
-    blankArray = blankData[mask > 0]
-    # Get the median
-    blankMedian = np.median(blankArray)
-    # Get the mode
     try:
-        blankMode = statistics.mode(blankArray)
-    except statistics.StatisticsError:
-        blankMode = blankMedian
-    # Get the mean
-    blankTable = aperture_photometry(data, blankAperture)
-    blankPhotons = blankTable['aperture_sum'][0]
-    annulusArea = (math.pi * (r * 4) * (r * 4)) - (math.pi * r * r)
-    blankMean = blankPhotons / annulusArea
-    if abs(blankMean-blankMedian) > 50 or abs(blankMean-blankMode) > 50 or abs(blankMode-blankMedian) > 50:
-        extraStar = 1
+        # Get array containing each pixel of blank
+        blankMask = blankAperture.to_mask(method='center')
+        blankData = blankMask.multiply(data)
+        mask = blankMask.data
+        blankArray = blankData[mask > 0]
+        # Get the median
+        blankMedian = np.median(blankArray)
+        # Get the mode
+        try:
+            blankMode = statistics.mode(blankArray)
+        except statistics.StatisticsError:
+            blankMode = blankMedian
+        # Get the mean
+        blankTable = aperture_photometry(data, blankAperture)
+        blankPhotons = blankTable['aperture_sum'][0]
+        annulusArea = (math.pi * (r * 4) * (r * 4)) - (math.pi * r * r)
+        blankMean = blankPhotons / annulusArea
+        if abs(blankMean-blankMedian) > 50 or abs(blankMean-blankMode) > 50 or abs(blankMode-blankMedian) > 50:
+            extraStar = 1
+    except TypeError:
+        blank = settings.universalBlank
     # If set to calculate per star
-    if settings.blankPerStarFlag == 1 or settings.universalBlank == 0:
+    if (settings.blankPerStarFlag == 1 or settings.universalBlank == 0) and blank == 0:
         blank = blankMode
     else:
         blank = settings.universalBlank
@@ -711,13 +717,14 @@ def printResultsToFile(info, filename="output.csv"):
     file.write("File Name,JD,Magnitude,Error, \n")
     # Output data)
     for i in range(len(info)):
-        trJD = truncate(info[i].JD, 6)
-        trMag = truncate(info[i].magnitude, 2)
-        trErr = truncate(info[i].error, 6)
-        n = info[i].fileName.split("/")
-        na = n[len(n) - 1]
-        file.write(na + "," + str(trJD) + "," + str(trMag) + ","
-                   + str(trErr) + ", \n")
+        if not(info[i] == 0):
+            trJD = truncate(info[i].JD, 6)
+            trMag = truncate(info[i].magnitude, 2)
+            trErr = truncate(info[i].error, 6)
+            n = info[i].fileName.split("/")
+            na = n[len(n) - 1]
+            file.write(na + "," + str(trJD) + "," + str(trMag) + ","
+                       + str(trErr) + ", \n")
     trChi = truncate(reducedChiSquared(info), 2)
     file.write("X,Reduced Chi Square: " + str(trChi) + ", \n")
     file.close()
@@ -1153,7 +1160,7 @@ def letsGo(targetStarRA, targetStarDec, mainFile, darkFrame, biasFrame, flatFiel
 
     # Calculate magnitudes, average, and error
     a = radius * radius * math.pi
-    sigmaBkg = math.sqrt(a * settings.universalBlank)
+    sigmaBkg = math.sqrt(abs(a * settings.universalBlank))
     ave, error, stars = calculateMagnitudeAndError(targetStarPhotons, stars, targetStarError, sigmaBkg)
     if ave == 0 and error == 0:
         print("Problem with first calculation.")
@@ -1232,9 +1239,9 @@ def matchCal(filename, cals):
         if abs(currDate - cals[i].JD) < minTimeDiff:
             minTimeDiff = abs(currDate - cals[i].JD)
             calName = cals[i].fileName
-        if abs(currDate - cals[i].JD) < 1.5:
-            # If there are multiple files on same day as the target image
-            # collect them to measure by exposure
+    # Check if multiple files on same day
+    for i in range(len(cals)):
+        if abs(minTimeDiff - abs(currDate - cals[i].JD)) < 1.5:
             temp = []
             temp.append(cals[i].fileName)
             temp.append(cals[i].magnitude)
