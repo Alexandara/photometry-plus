@@ -25,6 +25,8 @@ from photutils import CircularAnnulus
 from scipy.interpolate import make_interp_spline, BSpline
 from scipy import stats
 import statistics
+from photutils import DAOStarFinder
+from astropy.stats import sigma_clipped_stats
 
 from client import Client
 
@@ -237,12 +239,29 @@ def calibrate(filename, dark, bias, flat):
         hdul = fits.open(filename)  # hdul is the computer version of
                                     # the file data
     except OSError:
+        if settings.consolePrintFlag == 1:
+            print("Error in calibrate: Invalid filename:", filename)
         return 0
     #the following hdul files are computer readable versions of
     #the dark, and flat .fit files
-    hdulDark = fits.open(dark)
-    hdulFlat = fits.open(flat)
-    hdulBias = fits.open(bias)
+    try:
+        hdulDark = fits.open(dark)
+    except OSError:
+        if settings.consolePrintFlag == 1:
+            print("Error in calibrate: Invalid filename:", dark)
+        return 0
+    try:
+        hdulFlat = fits.open(flat)
+    except OSError:
+        if settings.consolePrintFlag == 1:
+            print("Error in calibrate: Invalid filename:", flat)
+        return 0
+    try:
+        hdulBias = fits.open(bias)
+    except OSError:
+        if settings.consolePrintFlag == 1:
+            print("Error in calibrate: Invalid filename:", bias)
+        return 0
 
     # Extract data from the files
     data = hdul[0].data
@@ -286,6 +305,7 @@ PURPOSE:    To take the recorded RA and DEC of a star and
             highest photon counts
 """
 def findCenter(Y, X, data):
+    global settings
     high = 0
     highY = Y
     highX = X
@@ -296,10 +316,15 @@ def findCenter(Y, X, data):
             #photon count so far, high should be set to that
             #amount and the RA and DEC should be set to that
             #location
-            if data[X + 50 - j][Y + 50 - i] > high:
-                high = data[X + 50 - j][Y + 50 - i]
-                highY = Y + 50 - i
-                highX = X + 50 - j
+            try:
+                if data[X + 50 - j][Y + 50 - i] > high:
+                    high = data[X + 50 - j][Y + 50 - i]
+                    highY = Y + 50 - i
+                    highX = X + 50 - j
+            except IndexError:
+                if settings.consolePrintFlag == 1:
+                    print("WARNING: Find center aborted because of out of bounds error. Returning starting coordinates.")
+                return Y, X
     #Return the true center of the star
     return highY, highX
 
@@ -405,6 +430,7 @@ PURPOSE:    Using the radius of the primary target star, this
 def findBlank(data, r):
     # Uses Background2D to find the median blanks over an area the side
     # of the star times four
+    r = int(r)
     try:
         background = Background2D(data, ((r * 4), (r * 4)))
     except ValueError:
@@ -424,8 +450,8 @@ PURPOSE:    Taking in information about any star, this method counts
 """
 def starCount(Y, X, data, r):
     global settings
-    blank = 0
     extraStar = 0
+    blankMode = 0
     # Creates an aperture centered around the target star of radius r
     if r <= 0:
         r = 20
@@ -460,11 +486,13 @@ def starCount(Y, X, data, r):
         blankMean = blankPhotons / annulusArea
         if abs(blankMean-blankMedian) > 50 or abs(blankMean-blankMode) > 50 or abs(blankMode-blankMedian) > 50:
             extraStar = 1
-    except TypeError:
+    except:
         blank = settings.universalBlank
     # If set to calculate per star
-    if (settings.blankPerStarFlag == 1 or settings.universalBlank == 0) and blank == 0:
+    if (settings.blankPerStarFlag == 1 or settings.universalBlank == 0) and not(blankMode == 0):
         blank = blankMode
+    elif settings.blankPerStarFlag == 1 and blankMode == 0 and settings.universalBlank == 0:
+        blank = findBlank(data, r)
     else:
         blank = settings.universalBlank
 
@@ -627,9 +655,22 @@ def printReferenceToFile(stars, filename="stars.csv"):
         os.mkdir("Output")
     # Create new file
     filename = "Output/" + filename
-    file = open(filename, "w")
+    try:
+        file = open(filename, "w")
+    except FileNotFoundError:
+        n = filename.split("/")
+        na = n[len(n) - 1]
+        filename = "Output/" + na
+        try:
+            file = open(filename, "w")
+        except FileNotFoundError:
+            file = open("Output/INVALIDFILENAMESTARS.csv", "w")
     # Create the heading
     file.write("ID,Right Ascension (Decimal Degrees),Declination (Decimal Degrees),Radius (pixels),Photons,Magnitude,Calculated Target Magnitude,Error,\n")
+    try:
+        len(stars)
+    except TypeError:
+        stars = [stars]
     # For each reference star, print all categories
     for i in range(len(stars)):
         trRA = truncate(stars[i].ra, 6)
@@ -654,7 +695,13 @@ PURPOSE:    This method reads in data on stars from a
             file to use to calculate the magnitude.
 """
 def readFromFile(fileName, radius, data, w):
-    file = open(fileName, "r")
+    global settings
+    try:
+        file = open(fileName, "r")
+    except FileNotFoundError:
+        if settings.consolePrintFlag == 1:
+            print("Error: Invalid file for reading in reference stars")
+        return 0
     stars = []
     for line in file:
         array = line.split(",")
@@ -682,18 +729,29 @@ PURPOSE:    Calculate the reduced chi squared value of
             a set of results in order to measure variability
 """
 def reducedChiSquared(info):
-    if len(info) == 1:
+    global settings
+    try:
+        len(info)
+    except TypeError:
+        info = [info]
+    if len(info) <= 1:
+        if settings.consolePrintFlag == 1:
+            print("Reduced Chi Squared error: Reduced chi squared cannot be calculated for", len(info), "value(s).")
         return 0
     mBar = 0
     for i in range(len(info)):
         mBar = mBar + info[i].magnitude
         if info[i].error == 0:
+            if settings.consolePrintFlag == 1:
+                print("Reduced Chi Squared error: Reduced chi squared calculation needs valid error values.")
             return 0
     mBar = mBar/len(info)
     chi = 0.0
     for i in range(len(info)):
         chi = chi + ((info[i].magnitude - mBar) / info[i].error) ** 2
         if info[i].error == 0:
+            if settings.consolePrintFlag == 1:
+                print("Reduced Chi Squared error: Reduced chi squared calculation needs valid error values.")
             return 0
     chi = chi / (len(info)-1)
     return chi
@@ -713,9 +771,23 @@ def printResultsToFile(info, filename="output.csv"):
         os.mkdir("Output")
     # Create new file
     filename = "Output/" + filename
-    file = open(filename, "w")
+    try:
+        file = open(filename, "w")
+    except FileNotFoundError:
+        n = filename.split("/")
+        na = n[len(n) - 1]
+        filename = "Output/" + na
+        try:
+            file = open(filename, "w")
+        except FileNotFoundError:
+            file = open("Output/INVALIDFILENAMERESULTS.csv", "w")
     file.write("File Name,JD,Magnitude,Error, \n")
-    # Output data)
+    # Output data
+
+    try:
+        len(info)
+    except TypeError:
+        info = [info]
     for i in range(len(info)):
         if not(info[i] == 0):
             trJD = truncate(info[i].JD, 6)
@@ -743,7 +815,12 @@ def plotResultsFile(filename, chartname="chart.pdf", chartTitle="Light Curve"):
     if not os.path.exists("Output"):
         os.mkdir("Output")
     # Read in output values from file
-    file = open(filename, "r")
+    try:
+        file = open(filename, "r")
+    except FileNotFoundError:
+        if settings.consolePrintFlag == 1:
+            print("Error: Invalid file for plotting results")
+        return 0
     jd = []
     mag = []
     err = []
@@ -793,6 +870,10 @@ def plotResults(ans, chartname="chart.pdf", chartTitle="Light Curve"):
     jd = []
     mag = []
     err = []
+    try:
+        len(ans)
+    except TypeError:
+        ans = [ans]
     for i in range(len(ans)):
         jd.append(ans[i].JD)
         mag.append(ans[i].magnitude)
@@ -815,7 +896,16 @@ def plotResults(ans, chartname="chart.pdf", chartTitle="Light Curve"):
     plt.gca().invert_yaxis()
     chartname = "Output/" + chartname
     if settings.printLightCurveFlag == 1:
-        plt.savefig(chartname)  # to save to file
+        try:
+            plt.savefig(chartname)  # to save to file
+        except FileNotFoundError:
+            n = chartname.split("/")
+            na = n[len(n) - 1]
+            chartname = "Output/" + na
+            try:
+                plt.savefig(chartname)
+            except FileNotFoundError:
+                plt.savefig("Output/INVALIDFILENAMECHART.pdf")
     if settings.showLightCurveFlag == 1:
         plt.show()  # to print to screen
     plt.clf()
@@ -851,6 +941,8 @@ def calculateMagnitudeAndError(targetStarPhotons, stars, targetStarError, sigmaB
         stars.remove(toRemove[i])
     if len(stars) == 0:
         # If the magnitude cannot be calculated for any reference star, exit
+        if settings.consolePrintFlag == 1:
+            print("Calculate magnitude error: Magnitude cannot be calculated for any reference star")
         return 0, 0, 0
     ave = ave / len(stars)
 
@@ -862,6 +954,8 @@ def calculateMagnitudeAndError(targetStarPhotons, stars, targetStarError, sigmaB
             error = error + ((stars[i].targetMagnitude - ave) * (stars[i].targetMagnitude - ave))
         if len(stars) <= 0 or (len(stars)-1) <= 0:
             # If the magnitude cannot be calculated for any reference star, exit
+            if settings.consolePrintFlag == 1:
+                print("Calculate magnitude error: Magnitude cannot be calculated for any reference star")
             return 0, 0, 0
         error = error / (len(stars)-1)
         error = math.sqrt(error/len(stars))
@@ -892,6 +986,8 @@ def calculateMagnitudeAndError(targetStarPhotons, stars, targetStarError, sigmaB
         # Final Error
         if ((len(stars)-1) * weightSum) == 0:
             # If the magnitude cannot be calculated for any reference star, exit
+            if settings.consolePrintFlag == 1:
+                print("Calculate magnitude error: Magnitude cannot be calculated for any reference star")
             return 0, 0, 0
         error = math.sqrt(magnitudeSum/((len(stars)-1) * weightSum))
         #error = math.sqrt(1/weightSum)
@@ -937,6 +1033,10 @@ PURPOSE:    Add WCS header to .fits file without one using astrometry.net
 """
 def getWCS(file, ra=0, dec=0):
     global settings
+    if settings.astrometryDotNetFlag == 0:
+        if settings.consolePrintFlag == 1:
+            print("Astrometry.net unavailable: Please set astrometryDotNetFlag setting to a valid Astrometry.net API Key")
+        return 0
     # Log in to astrometry.net
     if settings.consolePrintFlag == 1:
         print("Starting getWCS")
@@ -985,9 +1085,9 @@ def getWCS(file, ra=0, dec=0):
             if settings.consolePrintFlag == 1:
               if jCheck%50 == 0:
                    print("Preparing job ID for", jCheck, "iterations. Please hold.")
-            if jCheck > 1500:
+            if jCheck > 300:
                 if settings.consolePrintFlag == 1:
-                    print("Job failed.")
+                    print("Astrometry.net submission job ID cannot be retrieved.")
                 return 0
         if settings.consolePrintFlag == 1:
             print("Job ID retreived: ", jobid)
@@ -1011,12 +1111,12 @@ def getWCS(file, ra=0, dec=0):
             results = requests.get(joburl, allow_redirects=False)
             if astrometry.job_status(jobid) == 'failure':
                 if settings.consolePrintFlag == 1:
-                    print("Job failed.")
+                    print("Astrometry.net failed to solve submission.")
                 return 0
             problem = results.content[0]
     except TimeoutError:
         if settings.consolePrintFlag == 1:
-            print("Job timed out.")
+            print("Astrometry.net submission timed out.")
         return 0
     #Writing results to file
     file = open(filename, 'wb')
@@ -1025,7 +1125,6 @@ def getWCS(file, ra=0, dec=0):
     if settings.consolePrintFlag == 1:
         print("File written to ", filename)
     return filename
-    return 0
 
 """
 NAME:       removeReferenceOutliers
@@ -1061,6 +1160,7 @@ PARAMETERS: The right ascension of the target star in Decimal Degrees (targetSta
             The declination of the target star in Decimal Degrees (targetStarDec)
             The main .fits file with the image data name (mainFile)
             The dark frame .fits file name (darkFrame)
+            The bias frame .fits file name (biasFrame)
             The flat field .fits file name (flatField)
 PURPOSE:    This method combines the methods in this file to perform 
             full differential photometry on one image file. 
@@ -1074,6 +1174,8 @@ def letsGo(targetStarRA, targetStarDec, mainFile, darkFrame, biasFrame, flatFiel
         # Use the raw image
         hdul = fits.open(mainFile)
     if hdul == 0:
+        if settings.consolePrintFlag == 1:
+            print("letsGo on", mainFile, "aborted due to calibration error")
         return 0
 
     # Calculate magnitude
@@ -1084,19 +1186,29 @@ def letsGo(targetStarRA, targetStarDec, mainFile, darkFrame, biasFrame, flatFiel
     X, Y = w.all_world2pix(targetStarRA, targetStarDec, 0)
 
     # Converts pixel values to integers
-    Y = int(Y)  # was pixRA
-    X = int(X)  # was pixDec
+    try:
+        Y = int(Y)  # was pixRA
+        X = int(X)  # was pixDec
+    except ValueError:
+        if settings.consolePrintFlag == 1:
+            print("letsGo on", mainFile, "aborted due to invalid target star coordinates.")
+        return 0
 
     # Check if the file has WCS data
     try:
         hdul[0].header['CRVAL1']
     except KeyError:
         if settings.astrometryDotNetFlag == 0:
+            if settings.consolePrintFlag == 1:
+                print("letsGo on", mainFile, "aborted due to localization error.")
+                print("Suggestion: Set the astrometryDotNetFlag to a valid Astrometry.net API Key to localize files without world coordinate system data.")
             return 0
         else:
             # If it doesn't have WCS, add it
             mainFile = getWCS(mainFile, ra=targetStarRA, dec=targetStarDec)
             if mainFile == 0:
+                if settings.consolePrintFlag == 1:
+                    print("letsGo on", mainFile, "aborted due to localization error.")
                 return 0
             if settings.calibrationFlag == 1:
                 # Calibrate the image
@@ -1152,18 +1264,36 @@ def letsGo(targetStarRA, targetStarDec, mainFile, darkFrame, biasFrame, flatFiel
         # Read in reference stars from file
         if readInReferenceFilename == "0":
             stars = findOtherStars(Y, X, hdul[0].data, radius, w)
+            if stars == 0:
+                if settings.consolePrintFlag == 1:
+                    print("letsGo on", mainFile, "aborted due to problem finding reference stars in field")
+                return 0
         else:
             stars = readFromFile(readInReferenceFilename, radius, hdul[0].data, w)
+            if stars == 0:
+                if settings.consolePrintFlag == 1:
+                    print("Reading in reference stars from file failed, finding stars automatically:")
+                return 0
+                stars = findOtherStars(Y, X, hdul[0].data, radius, w)
+                if stars == 0:
+                    if settings.consolePrintFlag == 1:
+                        print("letsGo on", mainFile, "aborted due to problem finding reference stars in field")
+                    return 0
     else:
         # Finding new stars automatically
         stars = findOtherStars(Y, X, hdul[0].data, radius, w)
+        if stars == 0:
+            if settings.consolePrintFlag == 1:
+                print("letsGo on", mainFile, "aborted due to problem finding reference stars in field")
+            return 0
 
     # Calculate magnitudes, average, and error
     a = radius * radius * math.pi
     sigmaBkg = math.sqrt(abs(a * settings.universalBlank))
     ave, error, stars = calculateMagnitudeAndError(targetStarPhotons, stars, targetStarError, sigmaBkg)
     if ave == 0 and error == 0:
-        print("Problem with first calculation.")
+        if settings.consolePrintFlag == 1:
+            print("letsGo on", mainFile, "aborted due to problem calculating magnitude")
         return 0
 
     if not(settings.removeReferenceOutliersFlag == 0):
@@ -1230,7 +1360,12 @@ def matchCal(filename, cals):
     calName = ""
     possCals = []
     minTimeDiff = 100000000000
-    hdul = fits.open(filename)
+    try:
+        hdul = fits.open(filename)
+    except OSError:
+        if settings.consolePrintFlag == 1:
+            print("Error in matching calibration files: Invalid .fits file")
+        return 0
     currDate = hdul[0].header['JD']
     currExp = hdul[0].header['EXPTIME']
     hdul.close()
@@ -1348,3 +1483,68 @@ def createReferenceData(info, targetStarName="Star"):
             ans.append(arr[i][1][j])
         plotResults(ans, chartname="July 14 "+targetStarName+" Option A with "+str(arr[i][0])+".pdf", chartTitle="July 14 "+targetStarName+" Option A with "+str(arr[i][0]))
         printResultsToFile(ans, targetStarName+" Option A with "+str(arr[i][0])+".csv")
+
+"""
+NAME:       createCMD
+RETURNS:    Two star object arrays representing the stars that were used in the plot
+PARAMETERS: Array of star objects with V magnitudes (vstars)
+            Array of star objects with B magnitudes (bstars)
+PURPOSE:    To create a CMD plot of stars from a field.
+"""
+def createCMD(vstars, bstars):
+    xAxis = []
+    yAxis = []
+    usedVStars = []
+    usedBStars = []
+    for i in range(len(vstars)):
+        for j in range(len(bstars)):
+            if abs(vstars[i].ra - bstars[j].ra) < .0001 and abs(vstars[i].dec - bstars[j].dec) < .0001:
+                xAxis.append(abs(bstars[j].magnitude - vstars[i].magnitude))
+                yAxis.append(vstars[i].magnitude)
+                usedVStars.append(vstars[i])
+                usedBStars.append(bstars[j])
+    plt.plot(xAxis, yAxis, 'o', color='black')
+    # Chart Title
+    plt.title("M67: GBO/Photometry+")
+    # X axis label
+    plt.xlabel('B-V')
+    # Y axis label
+    plt.ylabel('V')
+    # Inverting the y axis because a smaller magnitude is a brighter object
+    plt.gca().invert_yaxis()
+    plt.show()
+    return usedVStars, usedBStars
+
+"""
+NAME:       findAllStars
+RETURNS:    Array of Star objects representing all stars in the image
+PARAMETERS: The main .fits file with the image data name (mainFile)
+            The dark frame .fits file name (darkFrame)
+            The bias frame .fits file name (biasFrame)
+            The flat field .fits file name (flatField)
+PURPOSE:    To find and calculate magnitudes of all stars in a field
+"""
+def findAllStars(mainFile, darkFrame, biasFrame, flatField):
+    global settings
+    # Set up the data for search
+    hdul = calibrate(mainFile, darkFrame, biasFrame, flatField)
+    settings.universalBlank = findBlank(hdul[0].data, int(hdul[0].header['FWHM'])*3)
+    w = worldCoordinateSystem(hdul)
+    # Find all stars in an image
+    mean, median, std = sigma_clipped_stats(hdul[0].data, sigma=3.0)
+    daofind = DAOStarFinder(fwhm=3, threshold=5.*std)
+    sources = daofind(hdul[0].data)
+    print(sources)
+    ans = []
+    stars = []
+    pixX = sources['xcentroid']
+    pixY = sources['ycentroid']
+    for i in range(len(pixX)):
+        world = w.all_pix2world([[pixX[i], pixY[i]]], 0)
+        ra = world[0][0]
+        dec = world[0][1]
+        x = letsGo(ra, dec, mainFile, darkFrame, biasFrame, flatField)
+        if not(x == 0):
+            ans.append(x)
+            stars.append(Star("Ref"+str(i), ra, dec, 0, 0, ans[len(ans)-1].magnitude, 0, ans[len(ans)-1].error))
+    return stars
