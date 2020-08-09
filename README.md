@@ -15,6 +15,8 @@ Build successful
  - numpy
  - matplotlib
  - astrometry.net
+ - Vizier
+ - DAOFind
  
 # Features
  - Calibration of .fits data and output of calibrated .fits file
