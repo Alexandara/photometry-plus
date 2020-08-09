@@ -71,6 +71,11 @@ class Settings:
         #         will need to be subtracted out
         self.subtractBiasFromDarkFlag = 1
 
+        # useDarkFlag:
+        # 0 = do not use dark file for calibration
+        # 1 = subtract dark file from main file
+        self.useDarkFlag = 1
+
         # calibrationOutputFlag:
         # 0 = not outputting calibrated files
         # 1 = output calibrated files
@@ -121,6 +126,16 @@ class Settings:
         # 1 = print light curve to file
         self.printLightCurveFlag = 1
 
+        # showCMDFlag:
+        # 0 = do not show CMD plot on the screen
+        # 1 = show CMD plot on the screen
+        self.showCMDFlag = 0
+
+        # printCMDFlag:
+        # 0 = do not print CMD to file
+        # 1 = print CMD to file
+        self.printCMDFlag = 1
+
         # errorChoice:
         # STD = use standard deviation method for error management
         # JKF = use jack knife method for error management
@@ -161,6 +176,11 @@ class Settings:
         # astrometry.net API key = use astrometry.net with this API key
         self.astrometryDotNetFlag = 0
 
+        # astrometryTimeOutFlag:
+        # 0 = run astrometry.net until it finds the job ID for the submission
+        # any positive number = run astrometry.net until this many iterations
+        self.astrometryTimeOutFlag = 0
+
         # universalBlank:
         # 0 = blank not calculated
         # any number = median blank counts
@@ -185,7 +205,9 @@ def changeSettings(subtractBiasFromDarkFlag=-1, calibrationOutputFlag=-1,
                    readInReferenceFlag=-1, fwhmFlag=-1,
                    printReferenceStarsFlag=-1, astrometryDotNetFlag=-1,
                    removeReferenceOutliersFlag=-1, readInRadiusFlag=-1,
-                   printLightCurveFlag=-1):
+                   printLightCurveFlag=-1, useDarkFlag=-1,
+                   astrometryTimeOutFlag=-1, showCMDFlag=-1,
+                   printCMDFlag=-1):
     global settings
     if not (subtractBiasFromDarkFlag == -1):
         settings.subtractBiasFromDarkFlag = subtractBiasFromDarkFlag
@@ -221,14 +243,22 @@ def changeSettings(subtractBiasFromDarkFlag=-1, calibrationOutputFlag=-1,
         settings.readInRadiusFlag = readInRadiusFlag
     if not (printLightCurveFlag == -1):
         settings.printLightCurveFlag = printLightCurveFlag
+    if not (useDarkFlag == -1):
+        settings.useDarkFlag = useDarkFlag
+    if not (astrometryTimeOutFlag == -1):
+        settings.astrometryTimeOutFlag = astrometryTimeOutFlag
+    if not (showCMDFlag == -1):
+        settings.showCMDFlag = showCMDFlag
+    if not (printCMDFlag == -1):
+        settings.printCMDFlag = printCMDFlag
 
 """
 NAME:       calibrate
 RETURNS:    calibrated data
 PARAMETERS: the file to be calibrated (filename)
             the dark frame (dark)
-            the flat frame (flat)
             the bias frame (bias)
+            the flat frame (flat)
 PURPOSE:    To calibrate raw .fits files into a form that can 
             be used to calculate accurate magnitude data. 
 """
@@ -242,8 +272,8 @@ def calibrate(filename, dark, bias, flat):
         if settings.consolePrintFlag == 1:
             print("Error in calibrate: Invalid filename:", filename)
         return 0
-    #the following hdul files are computer readable versions of
-    #the dark, and flat .fit files
+    # The following hdul files are computer readable versions of the dark, and flat .fit files
+    # Each file is checked for an OSError when opening
     try:
         hdulDark = fits.open(dark)
     except OSError:
@@ -276,7 +306,8 @@ def calibrate(filename, dark, bias, flat):
     # original data
     expTime = hdul[0].header['EXPTIME']/hdulDark[0].header['EXPTIME']
     dataDark = dataDark * expTime
-    data = data - dataDark #Subtract the dark frame from the data
+    if settings.useDarkFlag == 1:
+        data = data - dataDark #Subtract the dark frame from the data
     data = data - dataBias #Subtract the bias frame from the data
 
     dataFlatNorm = dataFlat / np.median(dataFlat) #Normalize the flat frame information
@@ -306,6 +337,7 @@ PURPOSE:    To take the recorded RA and DEC of a star and
 """
 def findCenter(Y, X, data):
     global settings
+    # WIP, use at own risk
     high = 0
     highY = Y
     highX = X
@@ -430,7 +462,7 @@ PURPOSE:    Using the radius of the primary target star, this
 def findBlank(data, r):
     # Uses Background2D to find the median blanks over an area the side
     # of the star times four
-    r = int(r)
+    r = int(r) # make sure the radius is an integer
     try:
         background = Background2D(data, ((r * 4), (r * 4)))
     except ValueError:
@@ -453,8 +485,10 @@ def starCount(Y, X, data, r):
     extraStar = 0
     blankMode = 0
     # Creates an aperture centered around the target star of radius r
-    if r <= 0:
+    if r == 0: # make sure the radius is not 0
         r = 20
+    if r < 0: # make sure the radius is a positive number
+        r = r * -1
     targetAperture = CircularAperture((X, Y), r=r)
     targetStarTable = aperture_photometry(data, targetAperture)
 
@@ -572,11 +606,12 @@ def findOtherStars(Y, X, data, rad, w):
                 # This line checks for a non-null magnitude value
                 if type(mag[i]) is np.float32:
                     starX, starY = w.all_world2pix(ra[i], dec[i], 0)
-                    # Calculate counts in the star
-                    c, sigmaSrc, extraStar = starCount(starY, starX, data, rad)
-                    # Addition of this star to the array of stars objects
-                    if extraStar == 0:
-                        stars.append(Star("Ref"+str(i), ra[i], dec[i], rad, c, mag[i], 0, sigmaSrc))
+                    if not(starX < 0 or starX >= len(data) or starY < 0 or starY >= len(data[0])):
+                        # Calculate counts in the star
+                        c, sigmaSrc, extraStar = starCount(starY, starX, data, rad)
+                        # Addition of this star to the array of stars objects
+                        if extraStar == 0:
+                            stars.append(Star("Ref"+str(i), ra[i], dec[i], rad, c, mag[i], 0, sigmaSrc))
         else:
             if settings.consolePrintFlag == 1:
                 print("Catalog has no valid entries. Switching to SIMBAD.")
@@ -616,11 +651,12 @@ def findOtherStars(Y, X, data, rad, w):
                     degreeRa = (tempRa2[0]*15) + ((tempRa2[1]/60)*15) + ((tempRa2[2]/3600)*15)
                     degreeDec = tempDec2[0] + (tempDec2[1]/60) + (tempDec2[2]/3600)
                     starX, starY = w.all_world2pix(degreeRa, degreeDec, 0)
-                    # Calculate counts in the star
-                    c, sigmaSrc, extraStar = starCount(starY, starX, data, rad)
-                    # Addition of this star to the array of stars objects
-                    if extraStar == 0:
-                        stars.append(Star("Ref"+str(i), degreeRa, degreeDec, rad, c, mag[i], 0, sigmaSrc))
+                    if not (starX < 0 or starX >= len(data) or starY < 0 or starY >= len(data[0])):
+                        # Calculate counts in the star
+                        c, sigmaSrc, extraStar = starCount(starY, starX, data, rad)
+                        # Addition of this star to the array of stars objects
+                        if extraStar == 0:
+                            stars.append(Star("Ref"+str(i), degreeRa, degreeDec, rad, c, mag[i], 0, sigmaSrc))
     elif sbad == 1 and len(stars) == 0 and not(fSim == 0):
         if settings.consolePrintFlag == 1:
             print("No reference stars found.")
@@ -730,6 +766,7 @@ PURPOSE:    Calculate the reduced chi squared value of
 """
 def reducedChiSquared(info):
     global settings
+    # Make sure an array is passed in
     try:
         len(info)
     except TypeError:
@@ -738,6 +775,7 @@ def reducedChiSquared(info):
         if settings.consolePrintFlag == 1:
             print("Reduced Chi Squared error: Reduced chi squared cannot be calculated for", len(info), "value(s).")
         return 0
+    # Calculate the average magnitude of all items
     mBar = 0
     for i in range(len(info)):
         mBar = mBar + info[i].magnitude
@@ -746,6 +784,7 @@ def reducedChiSquared(info):
                 print("Reduced Chi Squared error: Reduced chi squared calculation needs valid error values.")
             return 0
     mBar = mBar/len(info)
+    # Calculate the reduced chi squared value
     chi = 0.0
     for i in range(len(info)):
         chi = chi + ((info[i].magnitude - mBar) / info[i].error) ** 2
@@ -1085,7 +1124,7 @@ def getWCS(file, ra=0, dec=0):
             if settings.consolePrintFlag == 1:
               if jCheck%50 == 0:
                    print("Preparing job ID for", jCheck, "iterations. Please hold.")
-            if jCheck > 300:
+            if jCheck > settings.astrometryTimeOutFlag and not(settings.astrometryTimeOutFlag == 0):
                 if settings.consolePrintFlag == 1:
                     print("Astrometry.net submission job ID cannot be retrieved.")
                 return 0
@@ -1489,9 +1528,16 @@ NAME:       createCMD
 RETURNS:    Two star object arrays representing the stars that were used in the plot
 PARAMETERS: Array of star objects with V magnitudes (vstars)
             Array of star objects with B magnitudes (bstars)
+            Name of the chart file to be printed (chartname)
+            Name of the chart to be printed on the chart (charttitle)
 PURPOSE:    To create a CMD plot of stars from a field.
 """
-def createCMD(vstars, bstars):
+def createCMD(vstars, bstars, chartname="chart.pdf", charttitle="CMD"):
+    global settings
+    # Create new output directory if none exists
+    if not os.path.exists("Output"):
+        os.mkdir("Output")
+    # Create arrays for V on y axis and B-V on x axis
     xAxis = []
     yAxis = []
     usedVStars = []
@@ -1505,14 +1551,28 @@ def createCMD(vstars, bstars):
                 usedBStars.append(bstars[j])
     plt.plot(xAxis, yAxis, 'o', color='black')
     # Chart Title
-    plt.title("M67: GBO/Photometry+")
+    plt.title(charttitle)
     # X axis label
     plt.xlabel('B-V')
     # Y axis label
     plt.ylabel('V')
     # Inverting the y axis because a smaller magnitude is a brighter object
     plt.gca().invert_yaxis()
-    plt.show()
+    if settings.printCMDFlag == 1:
+        chartname = "Output/" + chartname
+        if settings.printLightCurveFlag == 1:
+            try:
+                plt.savefig(chartname)  # to save to file
+            except FileNotFoundError:
+                n = chartname.split("/")
+                na = n[len(n) - 1]
+                chartname = "Output/" + na
+                try:
+                    plt.savefig(chartname)
+                except FileNotFoundError:
+                    plt.savefig("Output/INVALIDFILENAMECHART.pdf")
+    if settings.showCMDFlag == 1:
+        plt.show()
     return usedVStars, usedBStars
 
 """
@@ -1537,13 +1597,16 @@ def findAllStars(mainFile, darkFrame, biasFrame, flatField):
     print(sources)
     ans = []
     stars = []
+    # Get X, Y
     pixX = sources['xcentroid']
     pixY = sources['ycentroid']
     for i in range(len(pixX)):
         world = w.all_pix2world([[pixX[i], pixY[i]]], 0)
         ra = world[0][0]
         dec = world[0][1]
+        # Get magnitude for found star
         x = letsGo(ra, dec, mainFile, darkFrame, biasFrame, flatField)
+        # If magnitude gotten, create a star object
         if not(x == 0):
             ans.append(x)
             stars.append(Star("Ref"+str(i), ra, dec, 0, 0, ans[len(ans)-1].magnitude, 0, ans[len(ans)-1].error))

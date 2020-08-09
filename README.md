@@ -26,7 +26,7 @@ Build successful
  - Expansive error calculation and correction options
  
 # Code Output Example
-The output is a .csv file containing calculated magnitudes per day: 
+**Results file output:** 
 File Name,JD,Magnitude,Error, 
 DW Cnc V-20200215at080749_-25-1X1-300-V.fts,2458894.8388310187,15.65760283818426,0.37986752525236084, 
 X,Reduced Chi Square: 1.20,
