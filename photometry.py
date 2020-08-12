@@ -1466,12 +1466,14 @@ def runFiles(targetStarRA, targetStarDec,
             dark = matchCal(filename, darkArray)
             flat = matchCal(filename, flatArray)
             bias = matchCal(filename, biasArray)
-
-            print("Filename:", filename)
-            print("Chosen Calibration files:", dark, flat)
-            x = letsGo(targetStarRA, targetStarDec, filename, dark)
-            if x != 0:
-                results.append(x)
+            if not(dark == 0) and not(bias == 0) and not(flat == 0):
+                if settings.consolePrintFlag == 1:
+                    print("Starting Photometry on Filename:", filename)
+                    print("Chosen Calibration files:", dark, flat)
+                x = letsGo(targetStarRA, targetStarDec, filename, dark, bias, flat)
+                # If photometry done correctly:
+                if x != 0:
+                    results.append(x)
 
     #Check and run all .fts files
     for filename in glob.glob(os.path.join(path, '*.fts')):
@@ -1479,11 +1481,15 @@ def runFiles(targetStarRA, targetStarDec,
             # Get calibration files:
             dark = matchCal(filename, darkArray)
             flat = matchCal(filename, flatArray)
-            #bias = matchCal(filename, biasArray)
-
-            x = letsGo(targetStarRA, targetStarDec, filename, dark, flat)
-            if x != 0:
-                results.append(x)
+            bias = matchCal(filename, biasArray)
+            if not (dark == 0) and not (bias == 0) and not (flat == 0):
+                if settings.consolePrintFlag == 1:
+                    print("Starting Photometry on Filename:", filename)
+                    print("Chosen Calibration files:", dark, bias, flat)
+                x = letsGo(targetStarRA, targetStarDec, filename, dark, bias, flat)
+                # If photometry done correctly:
+                if x != 0:
+                    results.append(x)
     return results
 
 """
