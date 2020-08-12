@@ -1462,7 +1462,7 @@ def runFiles(targetStarRA, targetStarDec,
     # Check and run all .fits files
     for filename in glob.glob(os.path.join(path, '*.fits')):
         with open(os.path.join(os.getcwd(), filename), 'r') as f:
-            # Get calibration files:
+            # Get Correct calibration files:
             dark = matchCal(filename, darkArray)
             flat = matchCal(filename, flatArray)
             bias = matchCal(filename, biasArray)
