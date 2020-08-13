@@ -1370,6 +1370,7 @@ PARAMETERS: Directory to search (dirName)
 PURPOSE:    Creates an array with the names of files and their Julian date
 """
 def getFiles(dirName):
+    global settings
     files = []
     # Check all files
     for filename in glob.glob(os.path.join(dirName, '*.fits')):
@@ -1386,6 +1387,10 @@ def getFiles(dirName):
                                         # the file data
             files.append(Photometry(filename, hdul[0].header['JD'], hdul[0].header['EXPTIME'], 0, []))
             hdul.close()
+    if len(files) <= 0:
+        if settings.consolePrintFlag == 1:
+            print("No files found in directory", dirName)
+        return 0
     return files
 
 """
@@ -1396,9 +1401,14 @@ PARAMETERS: Name of the file to match a calibration file to (filename)
 PURPOSE:    Match a data file to its closest calibration file by date
 """
 def matchCal(filename, cals):
-    calName = ""
+    global settings
+    calName = "BLANK"
     possCals = []
-    minTimeDiff = 100000000000
+    minTimeDiff = 10000000000000000000
+    if len(cals) <= 0:
+        if settings.consolePrintFlag == 1:
+            print("No valid calibration files passed into matchCal")
+        return 0
     try:
         hdul = fits.open(filename)
     except OSError:
@@ -1410,6 +1420,8 @@ def matchCal(filename, cals):
     hdul.close()
     # Find calibration file with smallest time difference from image file
     for i in range(len(cals)):
+        if i == 0:
+            minTimeDiff = abs(currDate - cals[i].JD)
         if abs(currDate - cals[i].JD) < minTimeDiff:
             minTimeDiff = abs(currDate - cals[i].JD)
             calName = cals[i].fileName
@@ -1422,6 +1434,8 @@ def matchCal(filename, cals):
             possCals.append(temp)
     # If only one calibration was taken on the same day, just return that one
     if (len(possCals)) <= 1:
+        if calName == "BLANK":
+            calName = cals[0].fileName
         return calName
     else:
         # Otherwise find the one with the closest exposure time
@@ -1431,6 +1445,8 @@ def matchCal(filename, cals):
             if abs(currExp - possCals[i][1]) < minExpDiff:
                 minExpDiff = abs(currExp - possCals[i][1])
                 calName = possCals[i][0]
+        if calName == "BLANK":
+            calName = cals[0].fileName
         return calName
 
 
@@ -1456,6 +1472,16 @@ def runFiles(targetStarRA, targetStarDec,
     darkArray = getFiles(darkDirName)
     flatArray = getFiles(flatDirName)
     biasArray = getFiles(biasDirName)
+    if darkArray == 0 and settings.consolePrintFlag == 1:
+        print("No dark frame calibration files found")
+    if flatArray == 0 and settings.consolePrintFlag == 1:
+        print("No flat field calibration files found")
+    if biasArray == 0 and settings.consolePrintFlag == 1:
+        print("No bias frame calibration files found")
+    if biasArray == 0 or darkArray == 0 or flatArray == 0:
+        if settings.consolePrintFlag == 1:
+            print("Aborting run files due to error finding calibration files")
+        return 0
 
     results = []
 
