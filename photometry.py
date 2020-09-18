@@ -69,27 +69,27 @@ class Settings:
         # 1 = subtract bias from dark before calibrating
         #   NOTE: Dark files from the Great Basin Observatory have bias included and the bias
         #         will need to be subtracted out
-        self.subtractBiasFromDarkFlag = 1
+        self.subtractBiasFromDarkFlag = 1 # INTERFACE
 
         # useDarkFlag:
         # 0 = do not use dark file for calibration
         # 1 = subtract dark file from main file
-        self.useDarkFlag = 1
+        self.useDarkFlag = 1 # INTERFACE
 
         # calibrationOutputFlag:
         # 0 = not outputting calibrated files
         # 1 = output calibrated files
-        self.calibrationOutputFlag = 0
+        self.calibrationOutputFlag = 0 # REDUNDANT IN INTERFACE
 
         # calibrationFlag:
         # 0 = not performing calibration in main methods
         # 1 = performing calibration in main methods
-        self.calibrationFlag = 1
+        self.calibrationFlag = 1 # INTERFACE
 
         # blankPerStarFlag:
         # 0 = calculate blank sky counts for the entire image
         # 1 = calculate blank sky counts for each star
-        self.blankPerStarFlag = 0
+        self.blankPerStarFlag = 0 # INTERFACE
 
         # catalogChoice:
         # II/336/apass9 = use APASS catalog
@@ -97,7 +97,7 @@ class Settings:
         # 0 = use SIMBAD
         #   WARNING: Using SIMBAD may result in errors being introduced into the calculation
         #   as different sources are used for magnitudes in SIMBAD
-        self.catalogChoice = "II/336/apass9"
+        self.catalogChoice = "II/336/apass9" # INTERFACE
 
         # filterChoice:
         # V = Johnson V filter
@@ -109,90 +109,95 @@ class Settings:
         #   WARNING: using a non-supported filter requires that the user sets this flag
         #   to the correct formatting for accessing that filter in the catalog of their
         #   choice
-        self.filterChoice = "V"
+        self.filterChoice = "V" # INTERFACE
 
         # lightCurveLineFlag:
         # 0 = generate light curve plots without lines (traditional)
         # 1 = generate light curve plots with smooth lines
-        self.lightCurveLineFlag = 0
+        self.lightCurveLineFlag = 0 # INTERFACE
 
         # showLightCurveFlag:
         # 0 = do not show light curve plots on the screen
         # 1 = show light curve plots on the screen
-        self.showLightCurveFlag = 0
+        self.showLightCurveFlag = 0 # Not viable for interface
 
         # printLightCurveFlag:
         # 0 = do not print light curve to file
         # 1 = print light curve to file
-        self.printLightCurveFlag = 1
+        self.printLightCurveFlag = 1 # Not viable for interface
 
         # showCMDFlag:
         # 0 = do not show CMD plot on the screen
         # 1 = show CMD plot on the screen
-        self.showCMDFlag = 0
+        self.showCMDFlag = 0 # Not viable for interface
 
         # printCMDFlag:
         # 0 = do not print CMD to file
         # 1 = print CMD to file
-        self.printCMDFlag = 1
+        self.printCMDFlag = 1 # Not viable for interface
 
         # errorChoice:
         # STD = use standard deviation method for error management
         # JKF = use jack knife method for error management
         # WMG = use weighted magnitude for error management
         # 0 = do not calculate error
-        self.errorChoice = "STD"
+        self.errorChoice = "STD" # INTERFACE
 
         # consolePrintFlag:
         # 0 = do not print to console
         # 1 = print updates to console
         #   WARNING: printing to console may slightly slow down the program
-        self.consolePrintFlag = 1
+        self.consolePrintFlag = 1 # Not viable for interface
 
         # readInReferenceFlag:
         # 0 = do not read in reference stars from file
         # file name = use this reference file
         # directory name = detect reference file in directory
-        self.readInReferenceFlag = 0
+        self.readInReferenceFlag = 0 # INTERFACE
 
         # readInRadiusFlag:
         # 0 = use target star radius for all reference stars
         # 1 = use radius in reference file for reference stars
-        self.readInRadiusFlag = 0
+        self.readInRadiusFlag = 0 # INTERFACE
 
         # fwhmFlag:
         # 0 = detect radius for stars manually
         # 1 = use Full-Width Half-Maximum if available as radius for apertures
         # any other number = use this as the default radius
-        self.fwhmFlag = 1
+        self.fwhmFlag = 1 # INTERFACE
 
         # printReferenceStarsFlag:
         # 0 = do not print reference stars out
         # 1 = print out reference stars used
-        self.printReferenceStarsFlag = 0
+        self.printReferenceStarsFlag = 0 # Not viable for interface
 
         # astrometryDotNetFlag:
         # 0 = do not use astrometry.net
         # astrometry.net API key = use astrometry.net with this API key
-        self.astrometryDotNetFlag = 0
+        self.astrometryDotNetFlag = 0 # INTERFACE
 
         # astrometryTimeOutFlag:
         # 0 = run astrometry.net until it finds the job ID for the submission
         # any positive number = run astrometry.net until this many iterations
-        self.astrometryTimeOutFlag = 0
+        self.astrometryTimeOutFlag = 0 # INTERFACE
 
         # universalBlank:
         # 0 = blank not calculated
         # any number = median blank counts
         #   NOTE: This number is for the program to use, it is not
         #         intended for use as a setting
-        self.universalBlank = 0
+        self.universalBlank = 0 # Not viable for interface
 
         # removeReferenceOutliersFlag:
         # 0 = do not remove reference star outliers
         # 3 = remove reference star outliers with absolute value z-score higher than 3
         # any other number = remove reference stars with absolute value z-scores above this number
         self.removeReferenceOutliersFlag = 3
+
+        # coordinateChoiceFlag:
+        # DEC = decimal degrees
+        # DEG = degrees
+        self.coordinateChoiceFlag = "DEC" # INTERFACE
 
 
 settings = Settings()
@@ -207,7 +212,8 @@ def changeSettings(subtractBiasFromDarkFlag=-1, calibrationOutputFlag=-1,
                    removeReferenceOutliersFlag=-1, readInRadiusFlag=-1,
                    printLightCurveFlag=-1, useDarkFlag=-1,
                    astrometryTimeOutFlag=-1, showCMDFlag=-1,
-                   printCMDFlag=-1):
+                   printCMDFlag=-1, coordinateChoiceFlag=-1,
+                   universalBlank=-1):
     global settings
     if not (subtractBiasFromDarkFlag == -1):
         settings.subtractBiasFromDarkFlag = subtractBiasFromDarkFlag
@@ -251,6 +257,61 @@ def changeSettings(subtractBiasFromDarkFlag=-1, calibrationOutputFlag=-1,
         settings.showCMDFlag = showCMDFlag
     if not (printCMDFlag == -1):
         settings.printCMDFlag = printCMDFlag
+    if not (coordinateChoiceFlag == -1):
+        settings.coordinateChoiceFlag = coordinateChoiceFlag
+    if not (universalBlank == -1):
+        settings.universalBlank = universalBlank
+
+"""
+NAME:       get[SETTING]
+RETURNS:    Requested setting
+PARAMETERS: N/A
+PURPOSE:    To access settings from different files  
+"""
+def getsubtractBiasFromDarkFlag():
+    return settings.subtractBiasFromDarkFlag
+def getcalibrationOutputFlag():
+    return settings.calibrationOutputFlag
+def getcalibrationFlag():
+    return settings.calibrationFlag
+def getblankPerStarFlag():
+    return settings.blankPerStarFlag
+def getcatalogChoice():
+    return settings.catalogChoice
+def getfilterChoice():
+    return settings.filterChoice
+def getlightCurveLineFlag():
+    return settings.lightCurveLineFlag
+def getshowLightCurveFlag():
+    return settings.showLightCurveFlag
+def geterrorChoice():
+    return settings.errorChoice
+def getconsolePrintFlag():
+    return settings.consolePrintFlag
+def getreadInReferenceFlag():
+    return settings.readInReferenceFlag
+def getfwhmFlag():
+    return settings.fwhmFlag
+def getprintReferenceStarsFlag():
+    return settings.printReferenceStarsFlag
+def getastrometryDotNetFlag():
+    return settings.astrometryDotNetFlag
+def getremoveReferenceOutliersFlag():
+    return settings.removeReferenceOutliersFlag
+def getreadInRadiusFlag():
+    return settings.readInRadiusFlag
+def getprintLightCurveFlag():
+    return settings.printLightCurveFlag
+def getuseDarkFlag():
+    return settings.useDarkFlag
+def getastrometryTimeOutFlag():
+    return settings.astrometryTimeOutFlag
+def getshowCMDFlag():
+    return settings.showCMDFlag
+def getprintCMDFlag():
+    return settings.printCMDFlag
+def getcoordinateChoiceFlag():
+    return settings.coordinateChoiceFlag
 
 """
 NAME:       calibrate
@@ -263,6 +324,37 @@ PURPOSE:    To calibrate raw .fits files into a form that can
             be used to calculate accurate magnitude data. 
 """
 def calibrate(filename, dark, bias, flat):
+    # Open the files
+    hdul = fits.open(filename)  # hdul is the computer version of the file data
+
+    # The following hdul files are computer readable versions of the dark, and flat .fit files
+    hdulDark = fits.open(dark)
+    hdulFlat = fits.open(bias)
+    hdulBias = fits.open(flat)
+
+    # Extract data from the files
+    data = hdul[0].data
+    dataDark = hdulDark[0].data
+    dataFlat = hdulFlat[0].data
+    dataBias = hdulBias[0].data
+
+    dataDark = dataDark - dataBias
+
+    # Check the exposure time of the files
+    if not (hdul[0].header['EXPTIME'] == hdulDark[0].header['EXPTIME']):
+        print("WARNING: Main file and dark file use different exposure times")
+    expTime = hdul[0].header['EXPTIME'] / hdulDark[0].header['EXPTIME']
+
+    # Calibrate the files, and then reassign the calibrated data to the original data
+    dataDark = dataDark * expTime
+    data = data - dataDark  # Subtract the dark frame from the data
+    data = data - dataBias  # Subtract the bias frame from the data
+
+    dataFlatNorm = dataFlat / np.median(dataFlat)  # Normalize the flat frame information
+    data = data // dataFlatNorm  # Divide out the normalized flat frame data
+
+    return data
+
     global settings
     # Open the files
     try:
@@ -1116,11 +1208,21 @@ def getWCS(file, ra=0, dec=0):
     try:
         # Get the job ID for uploaded file
         # It is compared to the old on to make sure it is the correct job ID
-        jobid = astrometry.myjobs()[0]
+        try:
+            jobid = astrometry.myjobs()[0]
+        except ConnectionResetError:
+            if settings.consolePrintFlag == 1:
+                print("Astrometry.net submission job ID cannot be retrieved.")
+            return 0
         jCheck = 0
         while oldJobid == jobid:
             jCheck = jCheck + 1
-            jobid = astrometry.myjobs()[0]
+            try:
+                jobid = astrometry.myjobs()[0]
+            except ConnectionResetError:
+                if settings.consolePrintFlag == 1:
+                    print("Astrometry.net submission job ID cannot be retrieved.")
+                return 0
             if settings.consolePrintFlag == 1:
               if jCheck%50 == 0:
                    print("Preparing job ID for", jCheck, "iterations. Please hold.")
@@ -1499,7 +1601,8 @@ def runFiles(targetStarRA, targetStarDec,
                 x = letsGo(targetStarRA, targetStarDec, filename, dark, bias, flat)
                 # If photometry done correctly:
                 if x != 0:
-                    results.append(x)
+                    if x.error < .1:
+                        results.append(x)
 
     #Check and run all .fts files
     for filename in glob.glob(os.path.join(path, '*.fts')):
