@@ -76,6 +76,11 @@ class Settings:
         # 1 = subtract dark file from main file
         self.useDarkFlag = 1 # INTERFACE
 
+        # useBiasFlag:
+        # 0 = do not use bias file for calibration
+        # 1 = subtract bias file from main file
+        self.useBiasFlag = 1  # INTERFACE
+
         # calibrationOutputFlag:
         # 0 = not outputting calibrated files
         # 1 = output calibrated files
@@ -213,7 +218,7 @@ def changeSettings(subtractBiasFromDarkFlag=-1, calibrationOutputFlag=-1,
                    printLightCurveFlag=-1, useDarkFlag=-1,
                    astrometryTimeOutFlag=-1, showCMDFlag=-1,
                    printCMDFlag=-1, coordinateChoiceFlag=-1,
-                   universalBlank=-1):
+                   universalBlank=-1, useBiasFlag=-1):
     global settings
     if not (subtractBiasFromDarkFlag == -1):
         settings.subtractBiasFromDarkFlag = subtractBiasFromDarkFlag
@@ -251,6 +256,8 @@ def changeSettings(subtractBiasFromDarkFlag=-1, calibrationOutputFlag=-1,
         settings.printLightCurveFlag = printLightCurveFlag
     if not (useDarkFlag == -1):
         settings.useDarkFlag = useDarkFlag
+    if not (useBiasFlag == -1):
+        settings.useBiasFlag = useBiasFlag
     if not (astrometryTimeOutFlag == -1):
         settings.astrometryTimeOutFlag = astrometryTimeOutFlag
     if not (showCMDFlag == -1):
@@ -304,6 +311,8 @@ def getprintLightCurveFlag():
     return settings.printLightCurveFlag
 def getuseDarkFlag():
     return settings.useDarkFlag
+def getuseBiasFlag():
+    return settings.useBiasFlag
 def getastrometryTimeOutFlag():
     return settings.astrometryTimeOutFlag
 def getshowCMDFlag():
@@ -400,7 +409,8 @@ def calibrate(filename, dark, bias, flat):
     dataDark = dataDark * expTime
     if settings.useDarkFlag == 1:
         data = data - dataDark #Subtract the dark frame from the data
-    data = data - dataBias #Subtract the bias frame from the data
+    if settings.useBiasFlag == 1:
+        data = data - dataBias #Subtract the bias frame from the data
 
     dataFlatNorm = dataFlat / np.median(dataFlat) #Normalize the flat frame information
     data = data // dataFlatNorm #Divide out the normalized flat frame data
