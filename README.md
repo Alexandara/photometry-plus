@@ -7,6 +7,9 @@ This project was created to speed up the lengthy process that is photometry. Doi
 # Build Status
 Build successful
 
+# Full Guide and Tutorial for GitHub Version
+https://docs.google.com/document/d/156hhJvwQ5JsuQsuCONkSsc4z2qmjbsZ71uLW4XOGpw8/edit?usp=sharing
+
 # Tech used
  - astropy [![astropy](http://img.shields.io/badge/powered%20by-AstroPy-orange.svg?style=flat)](http://www.astropy.org/)
  - photutils
