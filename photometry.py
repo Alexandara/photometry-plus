@@ -1324,10 +1324,13 @@ def letsGo(targetStarRA, targetStarDec, mainFile, darkFrame, biasFrame, flatFiel
     else:
         # Use the raw image
         hdul = fits.open(mainFile)
-    if hdul == 0:
-        if settings.consolePrintFlag == 1:
-            print("letsGo on", mainFile, "aborted due to calibration error")
-        return 0
+    try:
+        if hdul == 0:
+            if settings.consolePrintFlag == 1:
+                print("letsGo on", mainFile, "aborted due to calibration error")
+            return 0
+    except ValueError:
+        hdul = hdul
 
     # Calculate magnitude
     # w is the reference of world coordinates for this image

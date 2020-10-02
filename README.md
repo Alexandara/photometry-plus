@@ -20,6 +20,7 @@ https://docs.google.com/document/d/156hhJvwQ5JsuQsuCONkSsc4z2qmjbsZ71uLW4XOGpw8/
  - astrometry.net
  - Vizier
  - DAOFind
+ - PyQT 
  
 # Features
  - Calibration of .fits data and output of calibrated .fits file
