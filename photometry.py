@@ -333,37 +333,6 @@ PURPOSE:    To calibrate raw .fits files into a form that can
             be used to calculate accurate magnitude data. 
 """
 def calibrate(filename, dark, bias, flat):
-    # Open the files
-    hdul = fits.open(filename)  # hdul is the computer version of the file data
-
-    # The following hdul files are computer readable versions of the dark, and flat .fit files
-    hdulDark = fits.open(dark)
-    hdulFlat = fits.open(bias)
-    hdulBias = fits.open(flat)
-
-    # Extract data from the files
-    data = hdul[0].data
-    dataDark = hdulDark[0].data
-    dataFlat = hdulFlat[0].data
-    dataBias = hdulBias[0].data
-
-    dataDark = dataDark - dataBias
-
-    # Check the exposure time of the files
-    if not (hdul[0].header['EXPTIME'] == hdulDark[0].header['EXPTIME']):
-        print("WARNING: Main file and dark file use different exposure times")
-    expTime = hdul[0].header['EXPTIME'] / hdulDark[0].header['EXPTIME']
-
-    # Calibrate the files, and then reassign the calibrated data to the original data
-    dataDark = dataDark * expTime
-    data = data - dataDark  # Subtract the dark frame from the data
-    data = data - dataBias  # Subtract the bias frame from the data
-
-    dataFlatNorm = dataFlat / np.median(dataFlat)  # Normalize the flat frame information
-    data = data // dataFlatNorm  # Divide out the normalized flat frame data
-
-    return data
-
     global settings
     # Open the files
     try:
@@ -375,39 +344,41 @@ def calibrate(filename, dark, bias, flat):
         return 0
     # The following hdul files are computer readable versions of the dark, and flat .fit files
     # Each file is checked for an OSError when opening
-    try:
-        hdulDark = fits.open(dark)
-    except OSError:
-        if settings.consolePrintFlag == 1:
-            print("Error in calibrate: Invalid filename:", dark)
-        return 0
+    if settings.useDarkFlag == 1:
+        try:
+            hdulDark = fits.open(dark)
+            dataDark = hdulDark[0].data
+        except OSError:
+            if settings.consolePrintFlag == 1:
+                print("Error in calibrate: Invalid filename:", dark)
+            return 0
     try:
         hdulFlat = fits.open(flat)
+        dataFlat = hdulFlat[0].data
     except OSError:
         if settings.consolePrintFlag == 1:
             print("Error in calibrate: Invalid filename:", flat)
         return 0
-    try:
-        hdulBias = fits.open(bias)
-    except OSError:
-        if settings.consolePrintFlag == 1:
-            print("Error in calibrate: Invalid filename:", bias)
-        return 0
+    if settings.useBiasFlag == 1:
+        try:
+            hdulBias = fits.open(bias)
+            dataBias = hdulBias[0].data
+        except OSError:
+            if settings.consolePrintFlag == 1:
+                print("Error in calibrate: Invalid filename:", bias)
+            return 0
 
     # Extract data from the files
     data = hdul[0].data
-    dataDark = hdulDark[0].data
-    dataFlat = hdulFlat[0].data
-    dataBias = hdulBias[0].data
     # Check if bias needs to be subtracted from dark
-    if settings.subtractBiasFromDarkFlag == 1:
+    if settings.subtractBiasFromDarkFlag == 1 and settings.useDarkFlag == 1 and settings.useBiasFlag == 1:
         dataDark = dataDark - dataBias
 
     # Calibrate the files, and then reassign the calibrated data to the
     # original data
-    expTime = hdul[0].header['EXPTIME']/hdulDark[0].header['EXPTIME']
-    dataDark = dataDark * expTime
     if settings.useDarkFlag == 1:
+        expTime = hdul[0].header['EXPTIME']/hdulDark[0].header['EXPTIME']
+        dataDark = dataDark * expTime
         data = data - dataDark #Subtract the dark frame from the data
     if settings.useBiasFlag == 1:
         data = data - dataBias #Subtract the bias frame from the data
