@@ -27,6 +27,7 @@ from scipy import stats
 import statistics
 from photutils import DAOStarFinder
 from astropy.stats import sigma_clipped_stats
+from django.template.defaultfilters import slugify
 
 from client import Client
 
@@ -40,8 +41,8 @@ target star using this star, and the error of the counts in the star.
 class Star:
     def __init__(self, id, ra, dec, radius, counts, magnitude, targetMagnitude, error):
         self.id = id
-        self.ra = ra #Pixel location
-        self.dec = dec #Pixel location
+        self.ra = ra
+        self.dec = dec
         self.radius = radius
         self.counts = counts
         self.magnitude = magnitude
@@ -64,6 +65,34 @@ class Photometry:
 
 class Settings:
     def __init__(self):
+        # projectName
+        # Contains the name for the project
+        self.projectName = ""
+
+        # rightAscension
+        # Contains the right ascension for the project
+        self.rightAscension = 0
+
+        # declination
+        # Contains the declination for the project
+        self.declination = 0
+
+        # main
+        # Contains main filepath for the project
+        self.main = ""
+
+        # dark
+        # Contains dark filepath for the project
+        self.dark = ""
+
+        # bias
+        # Contains bias filepath for the project
+        self.bias = ""
+
+        # flat
+        # Contains main filepath for the project
+        self.flat = ""
+
         # subtractBiasFromDarkFlag:
         # 0 = use dark and bias as-is
         # 1 = subtract bias from dark before calibrating
@@ -204,6 +233,16 @@ class Settings:
         # DEG = degrees
         self.coordinateChoiceFlag = "DEC" # INTERFACE
 
+        # interface:
+        # 0 = use program as code
+        # 1 = save program for interface
+        self.interface = 0
+
+        # walkthroughMode:
+        # 0 = do not walk through
+        # 1 = walk through
+        self.walkthroughMode = 0
+
 
 settings = Settings()
 
@@ -218,8 +257,28 @@ def changeSettings(subtractBiasFromDarkFlag=-1, calibrationOutputFlag=-1,
                    printLightCurveFlag=-1, useDarkFlag=-1,
                    astrometryTimeOutFlag=-1, showCMDFlag=-1,
                    printCMDFlag=-1, coordinateChoiceFlag=-1,
-                   universalBlank=-1, useBiasFlag=-1):
+                   universalBlank=-1, useBiasFlag=-1,
+                   projectName=-1, rightAscension=-1,
+                   declination=-1, main=-1,
+                   dark=-1, bias=-1, flat=-1, interface=-1,
+                   walkthroughMode=-1):
     global settings
+    if not(projectName == -1):
+        settings.projectName = projectName
+    if not (interface == -1):
+        settings.interface = interface
+    if not(rightAscension == -1):
+        settings.rightAscension = rightAscension
+    if not(declination == -1):
+        settings.declination = declination
+    if not(main == -1):
+        settings.main = main
+    if not(dark == -1):
+        settings.dark = dark
+    if not(bias == -1):
+        settings.bias = bias
+    if not(flat == -1):
+        settings.flat = flat
     if not (subtractBiasFromDarkFlag == -1):
         settings.subtractBiasFromDarkFlag = subtractBiasFromDarkFlag
     if not (calibrationOutputFlag == -1):
@@ -268,6 +327,8 @@ def changeSettings(subtractBiasFromDarkFlag=-1, calibrationOutputFlag=-1,
         settings.coordinateChoiceFlag = coordinateChoiceFlag
     if not (universalBlank == -1):
         settings.universalBlank = universalBlank
+    if not(walkthroughMode == -1):
+        settings.walkthroughMode = walkthroughMode
 
 """
 NAME:       get[SETTING]
@@ -321,6 +382,166 @@ def getprintCMDFlag():
     return settings.printCMDFlag
 def getcoordinateChoiceFlag():
     return settings.coordinateChoiceFlag
+def getprojectName():
+    return settings.projectName
+def getrightAscension():
+    return settings.rightAscension
+def getdeclination():
+    return settings.declination
+def getmain():
+    return settings.main
+def getdark():
+    return settings.dark
+def getbias():
+    return settings.bias
+def getflat():
+    return settings.flat
+def getinterface():
+    return settings.interface
+def getwalkthroughMode():
+    return settings.walkthroughMode
+
+"""
+NAME:       saveSettings
+RETURNS:    N/A
+PARAMETERS: The settings object to save
+PURPOSE:    To save project settings for future use
+"""
+def saveSettings(set=settings):
+    if set.projectName == "":
+        return 0
+    # Create new output directory if none exists
+    if not os.path.exists("PhotPSaveData"):
+        os.mkdir("PhotPSaveData")
+    if not os.path.exists("PhotPSaveData/" + slugify(set.projectName)):
+        os.mkdir("PhotPSaveData/" + slugify(set.projectName))
+    # Create new file
+    filename = "PhotPSaveData/" + slugify(set.projectName) + "/settings.csv"
+    try:
+        file = open(filename, "w")
+    except FileNotFoundError:
+       return -1
+    # Write
+    file.write("Project Name," +  str(set.projectName) + ",\n")
+    file.write("Right Ascension," +  str(set.rightAscension) + ",\n")
+    file.write("Declination," + str(set.declination) + ",\n")
+    file.write("Main File Location," + str(set.main) + ",\n")
+    file.write("Dark File Location," + str(set.dark) + ",\n")
+    file.write("Bias File Location," + str(set.bias) + ",\n")
+    file.write("Flat File Location," + str(set.flat) + ",\n")
+    file.write("subtractBiasFromDarkFlag," + str(set.subtractBiasFromDarkFlag) + ",\n")
+    file.write("calibrationOutputFlag," + str(set.calibrationOutputFlag) + ",\n")
+    file.write("calibrationFlag," + str(set.calibrationFlag) + ",\n")
+    file.write("blankPerStarFlag," + str(set.blankPerStarFlag) + ",\n")
+    file.write("catalogChoice," + str(set.catalogChoice) + ",\n")
+    file.write("filterChoice," + str(set.filterChoice) + ",\n")
+    file.write("lightCurveLineFlag," + str(set.lightCurveLineFlag) + ",\n")
+    file.write("showLightCurveFlag," + str(set.showLightCurveFlag) + ",\n")
+    file.write("errorChoice," + str(set.errorChoice) + ",\n")
+    file.write("consolePrintFlag," + str(set.consolePrintFlag) + ",\n")
+    file.write("readInReferenceFlag," + str(set.readInReferenceFlag) + ",\n")
+    file.write("fwhmFlag," + str(set.fwhmFlag) + ",\n")
+    file.write("printReferenceStarsFlag," + str(set.printReferenceStarsFlag) + ",\n")
+    file.write("astrometryDotNetFlag," + str(set.astrometryDotNetFlag) + ",\n")
+    file.write("removeReferenceOutliersFlag," + str(set.removeReferenceOutliersFlag) + ",\n")
+    file.write("readInRadiusFlag," + str(set.readInRadiusFlag) + ",\n")
+    file.write("printLightCurveFlag," + str(set.printLightCurveFlag) + ",\n")
+    file.write("useDarkFlag," + str(set.useDarkFlag) + ",\n")
+    file.write("astrometryTimeOutFlag," + str(set.astrometryTimeOutFlag) + ",\n")
+    file.write("showCMDFlag," + str(set.showCMDFlag) + ",\n")
+    file.write("printCMDFlag," + str(set.printCMDFlag) + ",\n")
+    file.write("coordinateChoiceFlag," + str(set.coordinateChoiceFlag) + ",\n")
+    file.write("universalBlank," + str(set.universalBlank) + ",\n")
+    file.write("useBiasFlag," + str(set.useBiasFlag) + ",\n")
+    file.write("interface," + str(set.interface) + ",\n")
+    file.write("walkthroughMode," + str(set.walkthroughMode) + ",\n")
+    file.flush()
+    file.close()
+
+"""
+NAME:       readSettings
+RETURNS:    A settings object
+PARAMETERS: Settings file to read in from
+PURPOSE:    To retrieve project settings from file
+"""
+def readSettings(fileName):
+    try:
+        file = open(fileName, "r")
+    except FileNotFoundError:
+        if settings.consolePrintFlag == 1:
+            print("Error: Invalid file for reading in settings")
+        return 0
+    newSettings = Settings()
+    for line in file:
+        array = line.split(",")
+        if array[0] == "Project Name":
+            newSettings.projectName = array[1]
+        elif array[0] == "Right Ascension":
+            newSettings.rightAscension = float(array[1])
+        elif array[0] == "Declination":
+            newSettings.declination = float(array[1])
+        elif array[0] == "Main File Location":
+            newSettings.main = array[1]
+        elif array[0] == "Dark File Location":
+            newSettings.dark = array[1]
+        elif array[0] == "Bias File Location":
+            newSettings.bias = array[1]
+        elif array[0] == "Flat File Location":
+            newSettings.flat = array[1]
+        elif array[0] == "subtractBiasFromDarkFlag":
+            newSettings.subtractBiasFromDarkFlag = array[1]
+        elif array[0] == "calibrationOutputFlag":
+            newSettings.calibrationOutputFlag = array[1]
+        elif array[0] == "calibrationFlag":
+            newSettings.calibrationFlag = array[1]
+        elif array[0] == "blankPerStarFlag":
+            newSettings.blankPerStarFlag = array[1]
+        elif array[0] == "catalogChoice":
+            newSettings.catalogChoice = array[1]
+        elif array[0] == "filterChoice":
+            newSettings.filterChoice = array[1]
+        elif array[0] == "lightCurveLineFlag":
+            newSettings.lightCurveLineFlag = array[1]
+        elif array[0] == "showLightCurveFlag":
+            newSettings.showLightCurveFlag = array[1]
+        elif array[0] == "errorChoice":
+            newSettings.errorChoice = array[1]
+        elif array[0] == "consolePrintFlag":
+            newSettings.consolePrintFlag = array[1]
+        elif array[0] == "readInReferenceFlag":
+            newSettings.readInReferenceFlag = array[1]
+        elif array[0] == "fwhmFlag":
+            newSettings.fwhmFlag = array[1]
+        elif array[0] == "printReferenceStarsFlag":
+            newSettings.printReferenceStarsFlag = array[1]
+        elif array[0] == "astrometryDotNetFlag":
+            newSettings.astrometryDotNetFlag = array[1]
+        elif array[0] == "removeReferenceOutliersFlag":
+            newSettings.removeReferenceOutliersFlag = array[1]
+        elif array[0] == "readInRadiusFlag":
+            newSettings.readInRadiusFlag = array[1]
+        elif array[0] == "printLightCurveFlag":
+            newSettings.printLightCurveFlag = array[1]
+        elif array[0] == "useDarkFlag":
+            newSettings.useDarkFlag = array[1]
+        elif array[0] == "astrometryTimeOutFlag":
+            newSettings.astrometryTimeOutFlag = array[1]
+        elif array[0] == "showCMDFlag":
+            newSettings.showCMDFlag = array[1]
+        elif array[0] == "printCMDFlag":
+            newSettings.printCMDFlag = array[1]
+        elif array[0] == "coordinateChoiceFlag":
+            newSettings.coordinateChoiceFlag = array[1]
+        elif array[0] == "universalBlank":
+            newSettings.universalBlank = array[1]
+        elif array[0] == "useBiasFlag":
+            newSettings.useBiasFlag = array[1]
+        elif array[0] == "interface":
+            newSettings.interface = array[1]
+        elif array[0] == "walkthroughMode":
+            newSettings.walkthroughMode = array[1]
+    file.close()
+    return newSettings
 
 """
 NAME:       calibrate
@@ -332,8 +553,12 @@ PARAMETERS: the file to be calibrated (filename)
 PURPOSE:    To calibrate raw .fits files into a form that can 
             be used to calculate accurate magnitude data. 
 """
-def calibrate(filename, dark, bias, flat):
+def calibrate(filename, dark="", bias="", flat=""):
     global settings
+    if flat == "":
+        if settings.consolePrintFlag == 1:
+            print("Error in calibrate: No flat field")
+            return 0
     # Open the files
     try:
         hdul = fits.open(filename)  # hdul is the computer version of
@@ -390,11 +615,20 @@ def calibrate(filename, dark, bias, flat):
 
     # If outputting calibrated file, create folder and file
     if settings.calibrationOutputFlag == 1:
-        if not os.path.exists("Output"):
-            os.mkdir("Output")
         n = filename.split("/")
         na = n[len(n) - 1]
-        calibrationFile = "Output/CALIBRATED_" + na
+        if settings.interface == 0:
+            if not os.path.exists("Output"):
+                os.mkdir("Output")
+            calibrationFile = "Output/CALIBRATED_" + na
+        elif settings.interface == 1:
+            if not os.path.exists("PhotPSaveData"):
+                os.mkdir("PhotPSaveData")
+            if not os.path.exists("PhotPSaveData/" + slugify(settings.projectName)):
+                os.mkdir("PhotPSaveData/" + slugify(settings.projectName))
+            if not os.path.exists("PhotPSaveData/" + slugify(settings.projectName) + "/Calibrated"):
+                os.mkdir("PhotPSaveData/" + slugify(settings.projectName) + "/Calibrated")
+            calibrationFile = "PhotPSaveData/" + slugify(settings.projectName)  + "/Calibrated" + "/CALIBRATED_" + na
         hdul.writeto(calibrationFile, overwrite=True)
     return hdul
 
@@ -759,11 +993,25 @@ PURPOSE:    This method prints out a file  in a new directory named "Output"
             containing the stars used for calculating magnitude
 """
 def printReferenceToFile(stars, filename="stars.csv"):
-    # Create new output directory if none exists
-    if not os.path.exists("Output"):
-        os.mkdir("Output")
-    # Create new file
-    filename = "Output/" + filename
+    global settings
+    if settings.interface == 0:
+        # Create new output directory if none exists
+        if not os.path.exists("Output"):
+            os.mkdir("Output")
+        # Create new file
+        filename = "Output/" + filename
+    elif settings.interface == 1 and filename=="stars.csv":
+        if not os.path.exists("PhotPSaveData"):
+            os.mkdir("PhotPSaveData")
+        if not os.path.exists("PhotPSaveData/" + slugify(settings.projectName)):
+            os.mkdir("PhotPSaveData/" + slugify(settings.projectName))
+        filename = "PhotPSaveData/" + slugify(settings.projectName) + "/referencestars.csv"
+    elif settings.interface == 1:
+        if not os.path.exists("PhotPSaveData"):
+            os.mkdir("PhotPSaveData")
+        if not os.path.exists("PhotPSaveData/" + slugify(settings.projectName)):
+            os.mkdir("PhotPSaveData/" + slugify(settings.projectName))
+        filename = "PhotPSaveData/" + slugify(settings.projectName) + "/" + filename
     try:
         file = open(filename, "w")
     except FileNotFoundError:
@@ -878,11 +1126,18 @@ PURPOSE:    Output a file in a new Output directory with the file name,
             reported, and the error of that reported magnitude
 """
 def printResultsToFile(info, filename="output.csv"):
-    # Create new output directory if none exists
-    if not os.path.exists("Output"):
-        os.mkdir("Output")
-    # Create new file
-    filename = "Output/" + filename
+    if settings.interface == 0:
+        # Create new output directory if none exists
+        if not os.path.exists("Output"):
+            os.mkdir("Output")
+        # Create new file
+        filename = "Output/" + filename
+    elif settings.interface == 1:
+        if not os.path.exists("PhotPSaveData"):
+            os.mkdir("PhotPSaveData")
+        if not os.path.exists("PhotPSaveData/" + slugify(settings.projectName)):
+            os.mkdir("PhotPSaveData/" + slugify(settings.projectName))
+        filename = "PhotPSaveData/" + slugify(settings.projectName) + "/results.csv"
     try:
         file = open(filename, "w")
     except FileNotFoundError:
@@ -958,9 +1213,28 @@ def plotResultsFile(filename, chartname="chart.pdf", chartTitle="Light Curve"):
     plt.ylabel('Magnitude')
     # Inverting the y axis because a smaller magnitude is a brighter object
     plt.gca().invert_yaxis()
-    chartname = "Output/" + chartname
+    if settings.interface == 0:
+        if not os.path.exists("Output"):
+            os.mkdir("Output")
+        chartname = "Output/" + chartname
+    elif settings.interface == 1:
+        if not os.path.exists("PhotPSaveData"):
+            os.mkdir("PhotPSaveData")
+        if not os.path.exists("PhotPSaveData/" + slugify(settings.projectName)):
+            os.mkdir("PhotPSaveData/" + slugify(settings.projectName))
+        filename = "PhotPSaveData/" + slugify(settings.projectName) + "/lightcurve.png"
+        plt.savefig(filename)
     if settings.printLightCurveFlag == 1:
-        plt.savefig(chartname)  # to save to file
+        try:
+            plt.savefig(chartname)  # to save to file
+        except FileNotFoundError:
+            n = chartname.split("/")
+            na = n[len(n) - 1]
+            chartname = "Output/" + na
+            try:
+                plt.savefig(chartname)
+            except FileNotFoundError:
+                plt.savefig("Output/INVALIDFILENAMECHART.pdf")
     if settings.showLightCurveFlag == 1:
         plt.show()  # to print to screen
     plt.clf()
@@ -1006,7 +1280,17 @@ def plotResults(ans, chartname="chart.pdf", chartTitle="Light Curve"):
     plt.ylabel('Magnitude')
     # Inverting the y axis because a smaller magnitude is a brighter object
     plt.gca().invert_yaxis()
-    chartname = "Output/" + chartname
+    if settings.interface == 0:
+        if not os.path.exists("Output"):
+            os.mkdir("Output")
+        chartname = "Output/" + chartname
+    elif settings.interface == 1:
+        if not os.path.exists("PhotPSaveData"):
+            os.mkdir("PhotPSaveData")
+        if not os.path.exists("PhotPSaveData/" + slugify(settings.projectName)):
+            os.mkdir("PhotPSaveData/" + slugify(settings.projectName))
+        filename = "PhotPSaveData/" + slugify(settings.projectName) + "/lightcurve.png"
+        plt.savefig(filename)
     if settings.printLightCurveFlag == 1:
         try:
             plt.savefig(chartname)  # to save to file
@@ -1178,12 +1462,21 @@ def getWCS(file, ra=0, dec=0):
     if settings.consolePrintFlag == 1:
         print("File Uploaded")
 
-    # Create new output directory if none exists
-    if not os.path.exists("Output"):
-        os.mkdir("Output")
-    # Create filename to save to
     splitFile = file.split('/')
-    filename = "Output/CORRECTED_" + splitFile[len(splitFile) - 1]
+    if settings.interface == 0:
+        # Create new output directory if none exists
+        if not os.path.exists("Output"):
+            os.mkdir("Output")
+        # Create filename to save to
+        filename = "Output/CORRECTED_" + splitFile[len(splitFile) - 1]
+    elif settings.interface == 1:
+        if not os.path.exists("PhotPSaveData"):
+            os.mkdir("PhotPSaveData")
+        if not os.path.exists("PhotPSaveData/" + slugify(settings.projectName)):
+            os.mkdir("PhotPSaveData/" + slugify(settings.projectName))
+        if not os.path.exists("PhotPSaveData/" + slugify(settings.projectName) + "/Corrected"):
+            os.mkdir("PhotPSaveData/" + slugify(settings.projectName) + "/Corrected")
+        filename = "PhotPSaveData/" + slugify(settings.projectName) + "/Corrected" + "/CORRECTED_" + splitFile[len(splitFile) - 1]
 
     # Prevent program break from timeout
     try:
@@ -1287,7 +1580,7 @@ PARAMETERS: The right ascension of the target star in Decimal Degrees (targetSta
 PURPOSE:    This method combines the methods in this file to perform 
             full differential photometry on one image file. 
 """
-def letsGo(targetStarRA, targetStarDec, mainFile, darkFrame, biasFrame, flatField):
+def letsGo(targetStarRA, targetStarDec, mainFile, darkFrame="", biasFrame="", flatField=""):
     global settings
     if settings.calibrationFlag == 1:
         # Calibrate the image
@@ -1380,20 +1673,22 @@ def letsGo(targetStarRA, targetStarDec, mainFile, darkFrame, biasFrame, flatFiel
     # Find reference stars
     readInReferenceFilename = "0"
     if not(settings.readInReferenceFlag == 0):
-        if settings.readInReferenceFlag[len(settings.readInReferenceFlag)-1] == 'v' and settings.readInReferenceFlag[len(settings.readInReferenceFlag)-2] == 's' and settings.readInReferenceFlag[len(settings.readInReferenceFlag)-3] == 'c':
+        if not(isinstance(settings.readInReferenceFlag, str)):
+            stars = settings.readInReferenceFlag
+        elif settings.readInReferenceFlag[len(settings.readInReferenceFlag)-1] == 'v' and settings.readInReferenceFlag[len(settings.readInReferenceFlag)-2] == 's' and settings.readInReferenceFlag[len(settings.readInReferenceFlag)-3] == 'c':
             readInReferenceFilename = settings.readInReferenceFlag
         else:
             for filename in glob.glob(os.path.join(settings.readInReferenceFlag, '*.csv')):
                 with open(os.path.join(os.getcwd(), filename), 'r') as f:
                     readInReferenceFilename = filename
         # Read in reference stars from file
-        if readInReferenceFilename == "0":
+        if readInReferenceFilename == "0" and isinstance(settings.readInReferenceFlag, str):
             stars = findOtherStars(Y, X, hdul[0].data, radius, w)
             if stars == 0:
                 if settings.consolePrintFlag == 1:
                     print("letsGo on", mainFile, "aborted due to problem finding reference stars in field")
                 return 0
-        else:
+        elif not(readInReferenceFilename == "0") and isinstance(settings.readInReferenceFlag, str):
             stars = readFromFile(readInReferenceFilename, radius, hdul[0].data, w)
             if stars == 0:
                 if settings.consolePrintFlag == 1:
@@ -1551,7 +1846,7 @@ PURPOSE:    Calculates the average magnitude of the target star given the
             standard deviation of the calculated magnitudes.
 """
 def runFiles(targetStarRA, targetStarDec,
-            dirName, darkDirName, biasDirName, flatDirName):
+            dirName, darkDirName="", biasDirName="", flatDirName=""):
     global settings
     path = dirName
     # Make arrays of files and julian dates
@@ -1653,9 +1948,6 @@ PURPOSE:    To create a CMD plot of stars from a field.
 """
 def createCMD(vstars, bstars, chartname="chart.pdf", charttitle="CMD"):
     global settings
-    # Create new output directory if none exists
-    if not os.path.exists("Output"):
-        os.mkdir("Output")
     # Create arrays for V on y axis and B-V on x axis
     xAxis = []
     yAxis = []
@@ -1678,7 +1970,18 @@ def createCMD(vstars, bstars, chartname="chart.pdf", charttitle="CMD"):
     # Inverting the y axis because a smaller magnitude is a brighter object
     plt.gca().invert_yaxis()
     if settings.printCMDFlag == 1:
-        chartname = "Output/" + chartname
+        if settings.interface == 0:
+            # Create new output directory if none exists
+            if not os.path.exists("Output"):
+                os.mkdir("Output")
+            chartname = "Output/" + chartname
+        elif settings.interface == 1:
+            if not os.path.exists("PhotPSaveData"):
+                os.mkdir("PhotPSaveData")
+            if not os.path.exists("PhotPSaveData/" + slugify(settings.projectName)):
+                os.mkdir("PhotPSaveData/" + slugify(settings.projectName))
+            chartname = "PhotPSaveData/" + slugify(settings.projectName) + "/cmd.csv"
+            plt.savefig(chartname)
         if settings.printLightCurveFlag == 1:
             try:
                 plt.savefig(chartname)  # to save to file
@@ -1703,7 +2006,7 @@ PARAMETERS: The main .fits file with the image data name (mainFile)
             The flat field .fits file name (flatField)
 PURPOSE:    To find and calculate magnitudes of all stars in a field
 """
-def findAllStars(mainFile, darkFrame, biasFrame, flatField):
+def findAllStars(mainFile, darkFrame="", biasFrame="", flatField=""):
     global settings
     # Set up the data for search
     hdul = calibrate(mainFile, darkFrame, biasFrame, flatField)
