@@ -33,7 +33,7 @@ https://docs.google.com/document/d/156hhJvwQ5JsuQsuCONkSsc4z2qmjbsZ71uLW4XOGpw8/
  - User Interface that can be used to teach differential photometry
  
 # Code Output Example
-**Results file output:** 
+**Results file output:**   
 File Name,JD,Magnitude,Error, 
 DW Cnc V-20200215at080749_-25-1X1-300-V.fts,2458894.8388310187,15.65760283818426,0.37986752525236084, 
 X,Reduced Chi Square: 1.20,
@@ -52,20 +52,21 @@ runPhotometry(95.685417, -0.34563889, "MainFile.fts")
 runFiles(52.800196, 43.90441, "MainFolder", "DarkFolder", "BiasFolder", "FlatFolder")
 
 # How to use the user interface:
-Run the following code to start the user interface:
+Run the following code to start the user interface:  
 
-import photometryuserinterface
-from PyQt5 import QtWidgets
+import photometryuserinterface  
+from PyQt5 import QtWidgets 
 import sys
 
-if __name__ == '__main__':
-    app = QtWidgets.QApplication(sys.argv)
-    controller =photometryuserinterface.Controller()
-    controller.show_home()
-    sys.exit(app.exec_())
+if __name__ == '__main__':  
+    app = QtWidgets.QApplication(sys.argv) 
+    controller =photometryuserinterface.Controller()  
+    controller.show_home()  
+    sys.exit(app.exec_())  
 
 # How to start:
-All of the functions in the program have documentation above them describing what they do.  The functions can be used separately or all at once. To do photometry on a single image, call runPhotometry. The parameters for runPhotometry are described above the function, but at its simplest it can be run with only the location of the target star in decimal degrees and the image file. 
+All of the functions in the program have documentation above them describing what they do.  The functions can be used separately or all at once. To do photometry on a single image, call runPhotometry. The parameters for runPhotometry are described above the function, but at its simplest it can be run with only the location of the target star in decimal degrees and the image file.   
+  
 To run multiple files for the same target star in a folder, use runFiles. runFiles takes in most of the same parameters as runPhotometry with the addition of dirName, which is the relative file path to the folder you wish to comb. For more detailed instructions email alexisrenee1@gmail.com with questions.
                 
 # Contribute
@@ -76,7 +77,7 @@ Feel free to download this project and change it to suit your needs. Credit Phot
 
 If you use Photometry+ for work/research presented in a publication (whether directly, or as a dependency to another package), we ask that you please use the following citation:
      
-     - Tudor, A. 2020, Photometry+, v3.0, Github at https://github.com/Alexandara/photometry-plus
+     Tudor, A. 2020, Photometry+, v3.0, Github at https://github.com/Alexandara/photometry-plus
 
 If there is no place to cite the papers, please use this acknowledgement:
 
