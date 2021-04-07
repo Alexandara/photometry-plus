@@ -2,12 +2,12 @@
 Photometry+ is an autonomous photometry program designed for  astronomers to perform fast photometry with as much control  as they desire. This program is specifically tailored to the Great Basin Observatory telescope data, but can be adjusted to be used for other .fits files.
 
 # Motivation
-This project was created to speed up the lengthy process that is photometry. Doing photometry by hand is slow and inefficient, and it is not easy to do for beginners. With this program it becomes much simpler to do the actual process of photometry as well as, for beginners, to look inside of the program and understand what is happening.
+This project was created to speed up the lengthy process that is differential photometry. Doing differential photometry by hand is slow and inefficient, and it is not easy to do for beginners. With this program it becomes much simpler to do the actual process of photometry and to look inside of the program and understand what is happening.
 
 # Build Status
 Build successful
 
-# Full Guide and Tutorial for GitHub Version
+# Full Guide and Tutorials
 https://docs.google.com/document/d/156hhJvwQ5JsuQsuCONkSsc4z2qmjbsZ71uLW4XOGpw8/edit?usp=sharing
 
 # Tech used
@@ -17,10 +17,10 @@ https://docs.google.com/document/d/156hhJvwQ5JsuQsuCONkSsc4z2qmjbsZ71uLW4XOGpw8/
  - SIMBAD
  - numpy
  - matplotlib
- - astrometry.net
- - Vizier
+ - Astrometry.net
+ - VizieR
  - DAOFind
- - PyQT 
+ - PyQT5 
  
 # Features
  - Calibration of .fits data and output of calibrated .fits file
@@ -30,6 +30,7 @@ https://docs.google.com/document/d/156hhJvwQ5JsuQsuCONkSsc4z2qmjbsZ71uLW4XOGpw8/
  - Use of astrometry.net to identify WCS for images without WCS attached
  - Plot a light curve based on photometry data
  - Expansive error calculation and correction options
+ - User Interface that can be used to teach differential photometry
  
 # Code Output Example
 **Results file output:** 
@@ -43,17 +44,29 @@ This code was run using PyCharm which can be downloaded here: https://www.jetbra
 # API Reference
 SIMBAD API: https://astroquery.readthedocs.io/en/latest/simbad/simbad.html
 Astrometry.net API: http://nova.astrometry.net/api_help
+VizieR API: https://astroquery.readthedocs.io/en/latest/vizier/vizier.html
 
 # Example Function Calls
-letsGo(119.721, 16.279214, "apikeyfromastrometrynet", "DW Cnc V-20200215at080749_-25-1X1-300-V.fts", dark, flat, bias="bias.fits", fwhmFlag=1, readFlag=1, printFlag=1, calibrationOutputFlag=1)
+runPhotometry(95.685417, -0.34563889, "MainFile.fts")
 
-letsGo(119.721, 16.279214, "apikeyfromastrometrynet", "mainfile.fits", "darkfile.fits", "flatfield.fits", readFlag=1, printFlag=0, readInReferenceFilename="Output/DWCncReferenceStars.csv")
+runFiles(52.800196, 43.90441, "MainFolder", "DarkFolder", "BiasFolder", "FlatFolder")
 
-runFiles(52.800196, 43.90441, "apikeyfromastrometrynet", "DataFolder", "DarkCals", "FlatCals", readFlag=0, printFlag=1)
+# How to use the user interface:
+Run the following code to start the user interface:
+
+import photometryuserinterface
+from PyQt5 import QtWidgets
+import sys
+
+if __name__ == '__main__':
+    app = QtWidgets.QApplication(sys.argv)
+    controller =photometryuserinterface.Controller()
+    controller.show_home()
+    sys.exit(app.exec_())
 
 # How to start:
-All of the functions in the program have documentation above them describing what they do.  The functions can be used separately or all at once. To do photometry on a single image, call letsGo. The parameters for letsGo are described above the function, but at its simplest it can be run with only the location of the target star in decimal degrees, the image file, and the calibration files. 
-To run multiple files for the same target star in a folder, use runFiles. runFiles takes in most of the same parameters as letsGo with the addition of dirName, which is the relative file path to the folder you wish to comb. If set to read in from a file the default stars.csv can be used or the program can find a .csv file in the folder it is looking in and use that. For more detailed instructions email alexisrenee1@gmail.com with questions.
+All of the functions in the program have documentation above them describing what they do.  The functions can be used separately or all at once. To do photometry on a single image, call runPhotometry. The parameters for runPhotometry are described above the function, but at its simplest it can be run with only the location of the target star in decimal degrees and the image file. 
+To run multiple files for the same target star in a folder, use runFiles. runFiles takes in most of the same parameters as runPhotometry with the addition of dirName, which is the relative file path to the folder you wish to comb. For more detailed instructions email alexisrenee1@gmail.com with questions.
                 
 # Contribute
 Feel free to download this project and change it to suit your needs. Credit Photometry+ if you use any part of the code.
@@ -63,7 +76,7 @@ Feel free to download this project and change it to suit your needs. Credit Phot
 
 If you use Photometry+ for work/research presented in a publication (whether directly, or as a dependency to another package), we ask that you please use the following citation:
      
-     - Tudor, A. 2020, Photometry+, v0.3-beta, Github at https://github.com/Alexandara/photometry-plus
+     - Tudor, A. 2020, Photometry+, v3.0, Github at https://github.com/Alexandara/photometry-plus
 
 If there is no place to cite the papers, please use this acknowledgement:
 
