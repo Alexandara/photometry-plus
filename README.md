@@ -39,12 +39,12 @@ DW Cnc V-20200215at080749_-25-1X1-300-V.fts,2458894.8388310187,15.65760283818426
 X,Reduced Chi Square: 1.20,
 
 # Installation
-This code was run using PyCharm which can be downloaded here: https://www.jetbrains.com/pycharm/
+This code was developed using PyCharm which can be downloaded here: https://www.jetbrains.com/pycharm/
 
 # API Reference
-SIMBAD API: https://astroquery.readthedocs.io/en/latest/simbad/simbad.html
-Astrometry.net API: http://nova.astrometry.net/api_help
-VizieR API: https://astroquery.readthedocs.io/en/latest/vizier/vizier.html
+SIMBAD API: https://astroquery.readthedocs.io/en/latest/simbad/simbad.html   
+Astrometry.net API: http://nova.astrometry.net/api_help   
+VizieR API: https://astroquery.readthedocs.io/en/latest/vizier/vizier.html   
 
 # Example Function Calls
 runPhotometry(95.685417, -0.34563889, "MainFile.fts")
