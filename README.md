@@ -34,8 +34,8 @@ https://docs.google.com/document/d/156hhJvwQ5JsuQsuCONkSsc4z2qmjbsZ71uLW4XOGpw8/
  
 # Code Output Example
 **Results file output:**   
-File Name,JD,Magnitude,Error, 
-DW Cnc V-20200215at080749_-25-1X1-300-V.fts,2458894.8388310187,15.65760283818426,0.37986752525236084, 
+File Name,JD,Magnitude,Error,    
+DW Cnc V-20200215at080749_-25-1X1-300-V.fts,2458894.8388310187,15.65760283818426,0.37986752525236084,    
 X,Reduced Chi Square: 1.20,
 
 # Installation
