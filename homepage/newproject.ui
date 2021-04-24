@@ -790,7 +790,7 @@ outliers over z-score:
         </item>
         <item>
          <property name="text">
-          <string>Degrees</string>
+          <string>Sexagesimal (HH MM SS +/-DD MM SS)</string>
          </property>
         </item>
        </widget>

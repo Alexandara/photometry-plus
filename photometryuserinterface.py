@@ -161,7 +161,7 @@ class NewProject(QtWidgets.QMainWindow):
                                "It is similar to longitude on Earth. It is usually\n"
                                "the stellar coordinate listed first.\n\n"+
                                "Decimal Degree Example: 175.91034694\n" +
-                               "Degree Example: 11 43 38.4924789768")
+                               "Sexagesimal Example: 11 43 38.4924789768")
 
         self.rainfo.mousePressEvent = self.raMethod
 
@@ -170,7 +170,7 @@ class NewProject(QtWidgets.QMainWindow):
                                 "It is similar to latitude on Earth. It is usually\n"
                                 +"the stellar coordinate listed second.\n\n"+
                                "Decimal Degree Example: 71.68911273\n" +
-                               "Degree Example: +71 41 20.559348288")
+                               "Sexagesimal Example: +71 41 20.559348288")
 
         self.decinfo.mousePressEvent = self.decMethod
 
