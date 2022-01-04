@@ -999,7 +999,11 @@ def findOtherStars(Y, X, data, rad, w):
                         tempDec2.append(float(tempDec[j]))
                     # Conversion into decimal degrees
                     degreeRa = (tempRa2[0]*15) + ((tempRa2[1]/60)*15) + ((tempRa2[2]/3600)*15)
-                    degreeDec = tempDec2[0] + (tempDec2[1]/60) + (tempDec2[2]/3600)
+                    # check if declination is pos or negative before conversion
+                    if tempDec[0][0] == '-':
+                        degreeDec = tempDec2[0] - (tempDec2[1] / 60) - (tempDec2[2] / 3600)
+                    else:
+                        degreeDec = tempDec2[0] + (tempDec2[1] / 60) + (tempDec2[2] / 3600)
                     starX, starY = w.all_world2pix(degreeRa, degreeDec, 0)
                     if not (starX < 0 or starX >= len(data) or starY < 0 or starY >= len(data[0])):
                         # Calculate counts in the star
