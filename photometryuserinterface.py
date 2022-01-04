@@ -834,7 +834,11 @@ class NewProject(QtWidgets.QMainWindow):
                 tempDec2.append(float(tempDec[j]))
             # Conversion into decimal degrees
             r = (tempRa2[0] * 15) + ((tempRa2[1] / 60) * 15) + ((tempRa2[2] / 3600) * 15)
-            d = tempDec2[0] + (tempDec2[1] / 60) + (tempDec2[2] / 3600)
+            # check if declination is pos or negative before conversion
+            if tempDec[0][0] == '-':
+                d = tempDec2[0] - (tempDec2[1] / 60) - (tempDec2[2] / 3600)
+            else:
+                d = tempDec2[0] + (tempDec2[1] / 60) + (tempDec2[2] / 3600)
         # Calibration Output
         if self.calibrationFileDirectory == "":
             cof = 0
