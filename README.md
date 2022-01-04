@@ -59,10 +59,10 @@ from PyQt5 import QtWidgets
 import sys
 
 if __name__ == '__main__':  
-    app = QtWidgets.QApplication(sys.argv) 
-    controller =photometryuserinterface.Controller()  
-    controller.show_home()  
-    sys.exit(app.exec_())  
+    app = QtWidgets.QApplication(sys.argv)  
+    controller =photometryuserinterface.Controller()  
+    controller.show_home()  
+    sys.exit(app.exec_())  
 
 # How to start:
 All of the functions in the program have documentation above them describing what they do.  The functions can be used separately or all at once. To do photometry on a single image, call runPhotometry. The parameters for runPhotometry are described above the function, but at its simplest it can be run with only the location of the target star in decimal degrees and the image file.   
