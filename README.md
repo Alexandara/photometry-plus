@@ -8,7 +8,9 @@ This project was created to speed up the lengthy process that is differential ph
 Build successful
 
 # Full Guide and Tutorials
-https://docs.google.com/document/d/156hhJvwQ5JsuQsuCONkSsc4z2qmjbsZ71uLW4XOGpw8/edit?usp=sharing
+Guide: https://docs.google.com/document/d/156hhJvwQ5JsuQsuCONkSsc4z2qmjbsZ71uLW4XOGpw8/edit?usp=sharing  
+
+Video Tutorial: https://youtu.be/gPaxViG-Yd0
 
 # Tech used
  - astropy [![astropy](http://img.shields.io/badge/powered%20by-AstroPy-orange.svg?style=flat)](http://www.astropy.org/)
