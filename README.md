@@ -79,7 +79,7 @@ Feel free to download this project and change it to suit your needs. Credit Phot
 
 If you use Photometry+ for work/research presented in a publication (whether directly, or as a dependency to another package), we ask that you please use the following citation:
      
-     Tudor, A. 2020, Photometry+, v3.0, Github at https://github.com/Alexandara/photometry-plus
+     Tudor, A. R. 2020, Photometry+, v3.0, Github at https://github.com/Alexandara/photometry-plus
 
 If there is no place to cite the papers, please use this acknowledgement:
 
