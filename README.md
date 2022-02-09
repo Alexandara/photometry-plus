@@ -60,7 +60,7 @@ import photometryuserinterface
 from PyQt5 import QtWidgets 
 import sys
 
-if __name__ == '__main__':  
+if \__name\__ == '\__main\__':  
     app = QtWidgets.QApplication(sys.argv)  
     controller =photometryuserinterface.Controller()  
     controller.show_home()  
